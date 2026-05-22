@@ -5,7 +5,13 @@ import 'package:permission_handler_package/permission_handler_package.dart';
 import 'auth_theme.dart';
 import 'home_page.dart';
 
-void main() {
+void main() async {
+  // Ensure Flutter binding is initialized
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize the permission handler package
+  await PermissionHandler.initialize();
+
   runApp(const ProviderScope(child: MyApp()));
 }
 
@@ -43,10 +49,10 @@ class _SplashScreenState
   @override
   void initState() {
     super.initState();
-    _checkPermissions();
+    _initializePermissions();
   }
 
-  Future<void> _checkPermissions() async {
+  Future<void> _initializePermissions() async {
     final actionNotifier = ref.read(
       permissionActionProvider.notifier,
     );
@@ -88,7 +94,7 @@ class _SplashScreenState
             ),
             SizedBox(height: 16.h),
             Text(
-              'Checking permissions...',
+              'Initializing...',
               style: AuthTextStyles.bodyM,
             ),
           ],

@@ -110,13 +110,11 @@ class _HomePageState extends ConsumerState<HomePage> {
         padding: EdgeInsets.all(16.w),
         child: Column(
           children: [
-            // Media Permissions Section
             _buildSectionHeader(
               'Media Permissions',
               Icons.photo_library,
             ),
             SizedBox(height: 12.h),
-
             _buildPermissionCard(
               permission: PermissionType.photos,
               title: 'Photos Access',
@@ -124,7 +122,6 @@ class _HomePageState extends ConsumerState<HomePage> {
               icon: Icons.photo,
             ),
             SizedBox(height: 12.h),
-
             _buildPermissionCard(
               permission: PermissionType.videos,
               title: 'Videos Access',
@@ -132,7 +129,6 @@ class _HomePageState extends ConsumerState<HomePage> {
               icon: Icons.video_library,
             ),
             SizedBox(height: 12.h),
-
             _buildPermissionCard(
               permission: PermissionType.audio,
               title: 'Audio Access',
@@ -140,7 +136,6 @@ class _HomePageState extends ConsumerState<HomePage> {
               icon: Icons.audiotrack,
             ),
             SizedBox(height: 12.h),
-
             _buildPermissionCard(
               permission: PermissionType.storage,
               title: 'Storage Access',
@@ -148,14 +143,11 @@ class _HomePageState extends ConsumerState<HomePage> {
               icon: Icons.storage,
             ),
             SizedBox(height: 24.h),
-
-            // Communication Permissions Section
             _buildSectionHeader(
               'Communication Permissions',
               Icons.call,
             ),
             SizedBox(height: 12.h),
-
             _buildPermissionCard(
               permission: PermissionType.camera,
               title: 'Camera Access',
@@ -163,7 +155,6 @@ class _HomePageState extends ConsumerState<HomePage> {
               icon: Icons.camera_alt,
             ),
             SizedBox(height: 12.h),
-
             _buildPermissionCard(
               permission: PermissionType.microphone,
               title: 'Microphone Access',
@@ -171,7 +162,6 @@ class _HomePageState extends ConsumerState<HomePage> {
               icon: Icons.mic,
             ),
             SizedBox(height: 12.h),
-
             _buildPermissionCard(
               permission: PermissionType.contacts,
               title: 'Contacts Access',
@@ -179,14 +169,11 @@ class _HomePageState extends ConsumerState<HomePage> {
               icon: Icons.contacts,
             ),
             SizedBox(height: 24.h),
-
-            // Location Permissions Section
             _buildSectionHeader(
               'Location Permissions',
               Icons.location_on,
             ),
             SizedBox(height: 12.h),
-
             _buildPermissionCard(
               permission: PermissionType.location,
               title: 'Location Access',
@@ -195,14 +182,11 @@ class _HomePageState extends ConsumerState<HomePage> {
               icon: Icons.location_on,
             ),
             SizedBox(height: 24.h),
-
-            // Group Permissions Section
             _buildSectionHeader(
               'Group Permissions',
               Icons.group,
             ),
             SizedBox(height: 12.h),
-
             _buildGroupPermissionCard(
               group: PermissionGroup.media,
               title: 'All Media Permissions',
@@ -211,7 +195,6 @@ class _HomePageState extends ConsumerState<HomePage> {
               icon: Icons.photo_library,
             ),
             SizedBox(height: 12.h),
-
             _buildGroupPermissionCard(
               group: PermissionGroup.communication,
               title: 'All Communication Permissions',
@@ -219,8 +202,6 @@ class _HomePageState extends ConsumerState<HomePage> {
               icon: Icons.call,
             ),
             SizedBox(height: 24.h),
-
-            // Request All Button
             SizedBox(
               width: double.infinity,
               height: 56.h,
@@ -598,7 +579,10 @@ class _HomePageState extends ConsumerState<HomePage> {
       permissionActionProvider.notifier,
     );
     final result = await actionNotifier
-        .requestSinglePermission(permission);
+        .requestSinglePermission(
+          permission,
+          context: context,
+        );
 
     if (result.isGranted && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -629,7 +613,7 @@ class _HomePageState extends ConsumerState<HomePage> {
       permissionActionProvider.notifier,
     );
     final results = await actionNotifier
-        .requestPermissionGroup(group);
+        .requestPermissionGroup(group, context: context);
 
     final allGranted = results.values.every(
       (r) => r.isGranted,

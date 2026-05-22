@@ -20,8 +20,9 @@ enum PermissionType {
   // Notifications
   notifications,
 
-  // Calendar & Reminders
-  calendar,
+  // Calendar & Reminders - Using non-deprecated versions
+  calendarWriteOnly,
+  calendarFullAccess,
   reminders,
 
   // Connectivity
@@ -48,7 +49,6 @@ enum PermissionType {
 extension PermissionTypeExtension on PermissionType {
   Permission get permission {
     switch (this) {
-      // Storage & Media
       case PermissionType.storage:
         return Permission.storage;
       case PermissionType.photos:
@@ -57,48 +57,34 @@ extension PermissionTypeExtension on PermissionType {
         return Permission.videos;
       case PermissionType.audio:
         return Permission.audio;
-
-      // Communication
       case PermissionType.camera:
         return Permission.camera;
       case PermissionType.microphone:
         return Permission.microphone;
       case PermissionType.contacts:
         return Permission.contacts;
-
-      // Location
       case PermissionType.location:
         return Permission.location;
       case PermissionType.locationAlways:
         return Permission.locationAlways;
       case PermissionType.locationWhenInUse:
         return Permission.locationWhenInUse;
-
-      // Notifications
       case PermissionType.notifications:
         return Permission.notification;
-
-      // Calendar & Reminders
-      case PermissionType.calendar:
-        return Permission.calendar;
+      case PermissionType.calendarWriteOnly:
+        return Permission.calendarWriteOnly;
+      case PermissionType.calendarFullAccess:
+        return Permission.calendarFullAccess;
       case PermissionType.reminders:
         return Permission.reminders;
-
-      // Connectivity
       case PermissionType.bluetooth:
         return Permission.bluetooth;
-
-      // Sensors
       case PermissionType.sensors:
         return Permission.sensors;
-
-      // Phone & SMS
       case PermissionType.phone:
         return Permission.phone;
       case PermissionType.sms:
         return Permission.sms;
-
-      // App-specific
       case PermissionType.appTrackingTransparency:
         return Permission.appTrackingTransparency;
       case PermissionType.criticalAlerts:
@@ -120,44 +106,30 @@ extension PermissionTypeExtension on PermissionType {
 
   PermissionGroup get group {
     switch (this) {
-      // Storage & Media Group
       case PermissionType.storage:
       case PermissionType.photos:
       case PermissionType.videos:
       case PermissionType.audio:
         return PermissionGroup.media;
-
-      // Communication Group
       case PermissionType.camera:
       case PermissionType.microphone:
       case PermissionType.contacts:
         return PermissionGroup.communication;
-
-      // Location Group
       case PermissionType.location:
       case PermissionType.locationAlways:
       case PermissionType.locationWhenInUse:
         return PermissionGroup.locationServices;
-
-      // Calendar Group
-      case PermissionType.calendar:
+      case PermissionType.calendarWriteOnly:
+      case PermissionType.calendarFullAccess:
       case PermissionType.reminders:
         return PermissionGroup.calendar;
-
-      // Connectivity Group
       case PermissionType.bluetooth:
         return PermissionGroup.bluetooth;
-
-      // Sensors Group
       case PermissionType.sensors:
         return PermissionGroup.sensors;
-
-      // Phone Group
       case PermissionType.phone:
       case PermissionType.sms:
         return PermissionGroup.phone;
-
-      // Default group
       default:
         return PermissionGroup.other;
     }
@@ -165,7 +137,6 @@ extension PermissionTypeExtension on PermissionType {
 
   String get displayName {
     switch (this) {
-      // Storage & Media
       case PermissionType.storage:
         return 'Storage';
       case PermissionType.photos:
@@ -174,48 +145,34 @@ extension PermissionTypeExtension on PermissionType {
         return 'Videos';
       case PermissionType.audio:
         return 'Audio';
-
-      // Communication
       case PermissionType.camera:
         return 'Camera';
       case PermissionType.microphone:
         return 'Microphone';
       case PermissionType.contacts:
         return 'Contacts';
-
-      // Location
       case PermissionType.location:
         return 'Location';
       case PermissionType.locationAlways:
         return 'Location (Always)';
       case PermissionType.locationWhenInUse:
         return 'Location (While Using)';
-
-      // Notifications
       case PermissionType.notifications:
         return 'Notifications';
-
-      // Calendar & Reminders
-      case PermissionType.calendar:
-        return 'Calendar';
+      case PermissionType.calendarWriteOnly:
+        return 'Calendar (Write Only)';
+      case PermissionType.calendarFullAccess:
+        return 'Calendar (Full Access)';
       case PermissionType.reminders:
         return 'Reminders';
-
-      // Connectivity
       case PermissionType.bluetooth:
         return 'Bluetooth';
-
-      // Sensors
       case PermissionType.sensors:
         return 'Sensors';
-
-      // Phone & SMS
       case PermissionType.phone:
         return 'Phone';
       case PermissionType.sms:
         return 'SMS';
-
-      // App-specific
       case PermissionType.appTrackingTransparency:
         return 'App Tracking';
       case PermissionType.criticalAlerts:
@@ -237,7 +194,6 @@ extension PermissionTypeExtension on PermissionType {
 
   String get icon {
     switch (this) {
-      // Storage & Media
       case PermissionType.storage:
         return '💾';
       case PermissionType.photos:
@@ -246,80 +202,54 @@ extension PermissionTypeExtension on PermissionType {
         return '🎥';
       case PermissionType.audio:
         return '🎵';
-
-      // Communication
       case PermissionType.camera:
         return '📷';
       case PermissionType.microphone:
         return '🎤';
       case PermissionType.contacts:
         return '👥';
-
-      // Location
       case PermissionType.location:
       case PermissionType.locationAlways:
       case PermissionType.locationWhenInUse:
         return '📍';
-
-      // Notifications
       case PermissionType.notifications:
         return '🔔';
-
-      // Calendar & Reminders
-      case PermissionType.calendar:
+      case PermissionType.calendarWriteOnly:
+      case PermissionType.calendarFullAccess:
         return '📅';
       case PermissionType.reminders:
         return '⏰';
-
-      // Connectivity
       case PermissionType.bluetooth:
         return '📶';
-
-      // Sensors
       case PermissionType.sensors:
         return '📊';
-
-      // Phone & SMS
       case PermissionType.phone:
         return '📞';
       case PermissionType.sms:
         return '💬';
-
-      // App-specific
       default:
         return '🔧';
     }
   }
 
   String get description {
-    switch (this) {
-      case PermissionType.photos:
-        return 'Access to your photos and images';
-      case PermissionType.videos:
-        return 'Access to your video library';
-      case PermissionType.audio:
-        return 'Access to your audio and music files';
-      case PermissionType.storage:
-        return 'Access to device storage for reading and writing files';
+    switch (group) {
+      case PermissionGroup.media:
+        return 'Access to photos, videos, audio, and files on your device';
+      case PermissionGroup.communication:
+        return 'Access to camera, microphone, and contacts for communication features';
+      case PermissionGroup.locationServices:
+        return 'Access to your location for maps and location-based services';
+      case PermissionGroup.calendar:
+        return 'Access to calendar events and reminders';
+      case PermissionGroup.bluetooth:
+        return 'Access to Bluetooth for connecting to nearby devices';
+      case PermissionGroup.sensors:
+        return 'Access to device sensors for health and fitness tracking';
+      case PermissionGroup.phone:
+        return 'Access to phone and SMS features';
       default:
-        switch (group) {
-          case PermissionGroup.media:
-            return 'Access to photos, videos, audio, and files on your device';
-          case PermissionGroup.communication:
-            return 'Access to camera, microphone, and contacts for communication features';
-          case PermissionGroup.locationServices:
-            return 'Access to your location for maps and location-based services';
-          case PermissionGroup.calendar:
-            return 'Access to calendar events and reminders';
-          case PermissionGroup.bluetooth:
-            return 'Access to Bluetooth for connecting to nearby devices';
-          case PermissionGroup.sensors:
-            return 'Access to device sensors for health and fitness tracking';
-          case PermissionGroup.phone:
-            return 'Access to phone and SMS features';
-          default:
-            return 'This permission is required for app functionality';
-        }
+        return 'This permission is required for app functionality';
     }
   }
 }
@@ -401,7 +331,8 @@ extension PermissionGroupExtension on PermissionGroup {
         ];
       case PermissionGroup.calendar:
         return [
-          PermissionType.calendar,
+          PermissionType.calendarWriteOnly,
+          PermissionType.calendarFullAccess,
           PermissionType.reminders,
         ];
       case PermissionGroup.bluetooth:

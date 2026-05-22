@@ -70,10 +70,6 @@ class _PermissionBuilderState
                           style: GoogleFonts.urbanist(
                             fontSize: 14.sp,
                             fontWeight: FontWeight.w400,
-                            color:
-                                Theme.of(
-                                  context,
-                                ).colorScheme.onSurface,
                           ),
                         ),
                       ),
@@ -93,7 +89,7 @@ class _PermissionBuilderState
                 ),
               ),
       error:
-          (_, _) => Center(
+          (_, __) => Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -108,9 +104,6 @@ class _PermissionBuilderState
                   'Error checking permission',
                   style: GoogleFonts.urbanist(
                     fontSize: 14.sp,
-                    fontWeight: FontWeight.w400,
-                    color:
-                        Theme.of(context).colorScheme.error,
                   ),
                 ),
                 SizedBox(height: 8.h),
@@ -133,10 +126,9 @@ class _PermissionBuilderState
     final actionNotifier = ref.read(
       permissionActionProvider.notifier,
     );
-    await actionNotifier.initializeRequiredPermissions(
+    await actionNotifier.requestSinglePermission(
+      widget.permission,
       context: context,
-      requiredPermissions: [widget.permission],
-      showInitialScreen: true,
     );
     ref.invalidate(
       permissionStatusProvider(widget.permission),

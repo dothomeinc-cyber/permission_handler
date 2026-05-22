@@ -1,17 +1,20 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:permission_handler/permission_handler.dart'
+    as ph;
 import 'permission_manager.dart';
 import 'permission_state.dart';
 import 'models/permission_type.dart';
 import 'models/permission_result.dart';
-import 'widgets/permission_initial_dialog.dart';
-import 'widgets/permission_denied_dialog.dart';
-import 'widgets/permission_permanent_dialog.dart';
 
 final permissionManagerProvider =
     Provider<PermissionManager>((ref) {
-      return PermissionManager();
+      final manager = PermissionManager();
+      ref.onDispose(() => manager.dispose());
+      return manager;
     });
 
 final permissionStateProvider =
@@ -45,14 +48,12 @@ final permissionsStatusProvider = FutureProvider.family<
 >((ref, permissions) async {
   final manager = ref.read(permissionManagerProvider);
   final results = <PermissionType, bool>{};
-
   for (var permission in permissions) {
     final isGranted = await manager.isPermissionGranted(
       permission,
     );
     results[permission] = isGranted;
   }
-
   return results;
 });
 
@@ -61,38 +62,66 @@ class PermissionActionNotifier
   PermissionActionNotifier(
     this._manager,
     this._stateNotifier,
-  ) : super(const AsyncValue.data(null));
+  ) : super(const AsyncValue.data(null)) {
+    _setupAutoListeners();
+  }
 
   final PermissionManager _manager;
   final PermissionNotifier _stateNotifier;
+  bool _isDisposed = false;
 
-  /// Set custom explanation callback
+  void _setupAutoListeners() {
+    _manager.onPermissionChanged.listen((event) {
+      if (!_isDisposed) {
+        _stateNotifier.updatePermissions({
+          event.permission: event.result,
+        });
+      }
+    });
+  }
+
   void setPermissionExplanationCallback(
     PermissionExplanationCallback callback,
   ) {
     _manager.setOnBeforePermissionRequest(callback);
   }
 
-  /// Set custom group explanation callback
   void setGroupExplanationCallback(
     PermissionGroupExplanationCallback callback,
   ) {
     _manager.setOnBeforeGroupRequest(callback);
   }
 
-  /// Request permission group with custom explanation
-  Future<Map<PermissionType, PermissionResult>>
-  requestPermissionGroup(
-    PermissionGroup group, {
-    bool showExplanation = true,
-  }) async {
-    return await _manager.requestPermissionGroup(
-      group,
-      showExplanation: showExplanation,
-    );
+  void removePermissionExplanationCallback() {
+    _manager.setOnBeforePermissionRequest(null);
   }
 
-  /// Initialize required permissions with group support
+  void removeGroupExplanationCallback() {
+    _manager.setOnBeforeGroupRequest(null);
+  }
+
+  Future<void> autoInitialize() async {
+    if (_isDisposed) return;
+    _stateNotifier.setLoading(true);
+    try {
+      final allPermissions = PermissionType.values;
+      final results = await _manager.checkPermissionsStatus(
+        allPermissions,
+      );
+      if (!_isDisposed) {
+        _stateNotifier.updatePermissions(results);
+      }
+    } catch (e) {
+      if (!_isDisposed) {
+        _stateNotifier.setError(e.toString());
+      }
+    } finally {
+      if (!_isDisposed) {
+        _stateNotifier.setLoading(false);
+      }
+    }
+  }
+
   Future<bool> initializeRequiredPermissions({
     required BuildContext context,
     required List<PermissionType> requiredPermissions,
@@ -101,12 +130,11 @@ class PermissionActionNotifier
     String? title,
     String? message,
   }) async {
-    if (!context.mounted) return false;
+    if (_isDisposed) return false;
 
     _stateNotifier.setLoading(true);
 
     try {
-      // Expand groups to individual permissions if provided
       List<PermissionType> allPermissions = List.from(
         requiredPermissions,
       );
@@ -119,14 +147,19 @@ class PermissionActionNotifier
       final results = await _manager.checkPermissionsStatus(
         allPermissions,
       );
-      _stateNotifier.updatePermissions(results);
+
+      if (!_isDisposed && context.mounted) {
+        _stateNotifier.updatePermissions(results);
+      }
 
       final allGranted = results.values.every(
         (r) => r.isGranted,
       );
 
       if (allGranted) {
-        _stateNotifier.setLoading(false);
+        if (!_isDisposed && context.mounted) {
+          _stateNotifier.setLoading(false);
+        }
         return true;
       }
 
@@ -157,166 +190,58 @@ class PermissionActionNotifier
             const Duration(milliseconds: 500),
           );
 
-          final newResults = await _manager
-              .checkPermissionsStatus(allPermissions);
-          _stateNotifier.updatePermissions(newResults);
-
-          final allGrantedNow = newResults.values.every(
-            (r) => r.isGranted,
-          );
-          _stateNotifier.setLoading(false);
-          return allGrantedNow;
+          if (!_isDisposed && context.mounted) {
+            final newResults = await _manager
+                .checkPermissionsStatus(allPermissions);
+            _stateNotifier.updatePermissions(newResults);
+            final allGrantedNow = newResults.values.every(
+              (r) => r.isGranted,
+            );
+            _stateNotifier.setLoading(false);
+            return allGrantedNow;
+          }
         }
 
-        _stateNotifier.setLoading(false);
+        if (!_isDisposed && context.mounted) {
+          _stateNotifier.setLoading(false);
+        }
         return false;
       }
 
-      if (showInitialScreen && context.mounted) {
-        final shouldRequest =
-            await _showInitialPermissionScreen(
+      final missingPermissions =
+          allPermissions
+              .where((p) => !results[p]!.isGranted)
+              .toList();
+
+      if (missingPermissions.isNotEmpty &&
+          context.mounted) {
+        final requestResults = await _manager
+            .requestPermissions(
+              missingPermissions,
               context: context,
-              permissions: allPermissions,
-              title: title,
-              message: message,
             );
 
-        if (shouldRequest && context.mounted) {
-          final requestResults =
-              await _requestPermissionsWithRetry(
-                context: context,
-                permissions: allPermissions,
-              );
-
+        if (!_isDisposed && context.mounted) {
           _stateNotifier.updatePermissions(requestResults);
           final allGrantedNow = requestResults.values.every(
             (r) => r.isGranted,
           );
-
           _stateNotifier.setLoading(false);
           return allGrantedNow;
         }
       }
 
-      _stateNotifier.setLoading(false);
+      if (!_isDisposed && context.mounted) {
+        _stateNotifier.setLoading(false);
+      }
       return false;
     } catch (e) {
-      _stateNotifier.setError(e.toString());
-      _stateNotifier.setLoading(false);
+      if (!_isDisposed && context.mounted) {
+        _stateNotifier.setError(e.toString());
+        _stateNotifier.setLoading(false);
+      }
       return false;
     }
-  }
-
-  Future<Map<PermissionType, PermissionResult>>
-  _requestPermissionsWithRetry({
-    required BuildContext context,
-    required List<PermissionType> permissions,
-    int maxRetries = 2,
-  }) async {
-    int retryCount = 0;
-
-    while (retryCount < maxRetries) {
-      final results = await _manager.requestPermissions(
-        permissions,
-      );
-      final allGranted = results.values.every(
-        (r) => r.isGranted,
-      );
-
-      if (allGranted) {
-        return results;
-      }
-
-      final hasPermanentDenial = results.values.any(
-        (r) => r.isPermanentlyDenied,
-      );
-
-      if (hasPermanentDenial && context.mounted) {
-        final shouldOpenSettings =
-            await _showPermanentDenialDialog(
-              context: context,
-              permissions:
-                  permissions
-                      .where(
-                        (p) =>
-                            results[p]
-                                ?.isPermanentlyDenied ==
-                            true,
-                      )
-                      .toList(),
-            );
-
-        if (shouldOpenSettings && context.mounted) {
-          await _manager.openAppSettings();
-          await Future.delayed(
-            const Duration(milliseconds: 500),
-          );
-          retryCount++;
-          continue;
-        }
-        return results;
-      }
-
-      if (context.mounted) {
-        final shouldRetry = await _showDenialDialog(
-          context: context,
-          permissions:
-              permissions
-                  .where((p) => !results[p]!.isGranted)
-                  .toList(),
-          retryCount: retryCount,
-          maxRetries: maxRetries,
-        );
-
-        if (!shouldRetry) {
-          return results;
-        }
-      }
-
-      retryCount++;
-    }
-
-    return await _manager.checkPermissionsStatus(
-      permissions,
-    );
-  }
-
-  Future<bool> _showInitialPermissionScreen({
-    required BuildContext context,
-    required List<PermissionType> permissions,
-    String? title,
-    String? message,
-  }) async {
-    final result = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder:
-          (context) => PermissionInitialDialog(
-            permissions: permissions,
-            title: title,
-            message: message,
-          ),
-    );
-    return result ?? false;
-  }
-
-  Future<bool> _showDenialDialog({
-    required BuildContext context,
-    required List<PermissionType> permissions,
-    required int retryCount,
-    required int maxRetries,
-  }) async {
-    final result = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder:
-          (context) => PermissionDeniedDialog(
-            permissions: permissions,
-            retryCount: retryCount,
-            maxRetries: maxRetries,
-          ),
-    );
-    return result ?? false;
   }
 
   Future<bool> _showPermanentDenialDialog({
@@ -325,37 +250,147 @@ class PermissionActionNotifier
     String? title,
     String? message,
   }) async {
-    final result = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder:
-          (context) => PermissionPermanentDialog(
-            permissions: permissions,
-            title: title,
-            message: message,
-          ),
+    if (!context.mounted) return false;
+
+    final completer = Completer<bool>();
+    final localContext = context;
+
+    if (!localContext.mounted) {
+      completer.complete(false);
+      return completer.future;
+    }
+
+    showDialog<bool>(
+          context: localContext,
+          barrierDismissible: false,
+          builder:
+              (dialogContext) => AlertDialog(
+                title: Text(
+                  title ?? 'Permissions Permanently Denied',
+                ),
+                content: Text(
+                  message ??
+                      'You have permanently denied the following permissions:\n\n'
+                          '${permissions.map((p) => '• ${p.displayName}').join('\n')}\n\n'
+                          'Please enable them in device settings to continue.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      if (dialogContext.mounted) {
+                        Navigator.pop(dialogContext, false);
+                      }
+                      if (!completer.isCompleted) {
+                        completer.complete(false);
+                      }
+                    },
+                    child: const Text('Cancel'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      if (dialogContext.mounted) {
+                        Navigator.pop(dialogContext, true);
+                      }
+                      if (!completer.isCompleted) {
+                        completer.complete(true);
+                      }
+                    },
+                    child: const Text('Open Settings'),
+                  ),
+                ],
+              ),
+        )
+        .then((result) {
+          if (!completer.isCompleted) {
+            completer.complete(result ?? false);
+          }
+        })
+        .catchError((e) {
+          if (!completer.isCompleted) {
+            completer.complete(false);
+          }
+        });
+
+    return completer.future;
+  }
+
+  Future<PermissionResult> requestIfNeeded(
+    PermissionType permission, {
+    BuildContext? context,
+  }) async {
+    if (_isDisposed) {
+      return PermissionResult(
+        permission: permission,
+        isGranted: false,
+        isPermanentlyDenied: false,
+        status: ph.PermissionStatus.denied,
+      );
+    }
+
+    final isGranted = await _manager.isPermissionGranted(
+      permission,
     );
-    return result ?? false;
+    if (isGranted) {
+      return PermissionResult(
+        permission: permission,
+        isGranted: true,
+        isPermanentlyDenied: false,
+        status: ph.PermissionStatus.granted,
+      );
+    }
+
+    final localContext = context;
+    return await _manager.requestPermission(
+      permission,
+      context: localContext,
+    );
   }
 
   Future<PermissionResult> requestSinglePermission(
-    PermissionType permission,
-  ) async {
-    try {
-      final result = await _manager.requestPermission(
-        permission,
+    PermissionType permission, {
+    BuildContext? context,
+  }) async {
+    if (_isDisposed) {
+      return PermissionResult(
+        permission: permission,
+        isGranted: false,
+        isPermanentlyDenied: false,
+        status: ph.PermissionStatus.denied,
       );
-      _stateNotifier.updatePermissions({
-        permission: result,
-      });
-      return result;
-    } catch (e) {
-      rethrow;
     }
+
+    final localContext = context;
+    return await _manager.requestPermission(
+      permission,
+      context: localContext,
+    );
+  }
+
+  Future<Map<PermissionType, PermissionResult>>
+  requestPermissionGroup(
+    PermissionGroup group, {
+    BuildContext? context,
+  }) async {
+    if (_isDisposed) return {};
+
+    final localContext = context;
+    return await _manager.requestPermissionGroup(
+      group,
+      context: localContext,
+    );
   }
 
   void reset() {
-    _stateNotifier.reset();
+    if (!_isDisposed) {
+      _stateNotifier.reset();
+      _manager.clearAllCache();
+    }
+  }
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    super.dispose();
   }
 }
 
@@ -363,9 +398,23 @@ final permissionActionProvider = StateNotifierProvider<
   PermissionActionNotifier,
   AsyncValue<void>
 >((ref) {
-  final manager = ref.read(permissionManagerProvider);
-  final stateNotifier = ref.read(
+  final manager = ref.watch(permissionManagerProvider);
+  final stateNotifier = ref.watch(
     permissionStateProvider.notifier,
   );
-  return PermissionActionNotifier(manager, stateNotifier);
+  final notifier = PermissionActionNotifier(
+    manager,
+    stateNotifier,
+  );
+
+  Future.microtask(() {
+    try {
+      notifier.autoInitialize();
+    } catch (e) {
+      // Provider might have been disposed
+    }
+  });
+
+  ref.onDispose(() => notifier.dispose());
+  return notifier;
 });

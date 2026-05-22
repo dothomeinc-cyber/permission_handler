@@ -19,12 +19,25 @@ A professional Flutter package for handling permissions automatically with **Riv
 - [Platform Configuration](#platform-configuration)
   - [Android Setup](#android-setup)
   - [iOS Setup](#ios-setup)
+- [Initialization](#initialization)
 - [Quick Start](#quick-start)
 - [Permission Types & Groups](#permission-types--groups)
   - [Complete Permission Types](#complete-permission-types)
   - [Permission Groups](#permission-groups)
   - [Platform Support Matrix](#platform-support-matrix)
 - [Usage Examples](#usage-examples)
+  - [1. Request Single Permission](#1-request-single-permission)
+  - [2. Request Permission Group](#2-request-permission-group)
+  - [3. Permission Wrapper Widget](#3-permission-wrapper-widget)
+  - [4. Reactive Permission Builder](#4-reactive-permission-builder)
+  - [5. Check Permission Status](#5-check-permission-status)
+  - [6. Listen to Permission Changes](#6-listen-to-permission-changes)
+  - [7. Custom Explanation Dialog](#7-custom-explanation-dialog)
+  - [8. Multiple Permissions with Groups](#8-multiple-permissions-with-groups)
+  - [9. Check Group Permission Status](#9-check-group-permission-status)
+  - [10. Conditional UI Based on Permissions](#10-conditional-ui-based-on-permissions)
+  - [11. Smart Request (Request If Needed)](#11-smart-request-request-if-needed)
+  - [12. Reset Permission State](#12-reset-permission-state)
 - [API Reference](#api-reference)
   - [PermissionActionNotifier Methods](#permissionactionnotifier-methods)
   - [PermissionManager Methods](#permissionmanager-methods)
@@ -32,7 +45,16 @@ A professional Flutter package for handling permissions automatically with **Riv
   - [PermissionGroup Properties](#permissiongroup-properties)
   - [Widgets](#widgets)
   - [Providers](#providers)
+- [Advanced Features](#advanced-features)
+  - [Automatic Cache Management](#automatic-cache-management)
+  - [Lifecycle Gap Handling](#lifecycle-gap-handling)
+  - [Permission Change Listening](#permission-change-listening)
+  - [Platform-Specific Notes](#platform-specific-notes)
 - [Customization](#customization)
+  - [Custom Theme Integration](#custom-theme-integration)
+  - [Custom Loading Widget](#custom-loading-widget)
+  - [Custom Denied Widget](#custom-denied-widget)
+  - [Custom Explanation Dialogs](#custom-explanation-dialogs)
 - [Cheatsheet](#cheatsheet)
 - [Troubleshooting](#troubleshooting)
 - [FAQ](#faq)
@@ -60,6 +82,10 @@ A professional Flutter package for handling permissions automatically with **Riv
 | **Custom Explanation Dialogs** | Show custom messages before requesting permissions |
 | **Permission Groups** | Request multiple related permissions at once |
 | **Platform-Specific Support** | Automatically handles iOS/Android differences |
+| **Automatic Cache Management** | 3-second TTL cache with auto-invalidation on app resume |
+| **Lifecycle Gap Handling** | Safe operation queuing before WidgetsBinding is ready |
+| **Permission Change Listening** | Real-time stream of permission status changes |
+| **Automatic Permanent Denial Handling** | Auto-redirects to settings when permission is permanently denied |
 
 ---
 
@@ -204,6 +230,25 @@ Add to `ios/Runner/Info.plist`:
 
 ---
 
+## Initialization
+
+Initialize the package **before** `runApp()`:
+
+```dart
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Required: initialize the permission handler package
+  await PermissionHandler.initialize();
+
+  runApp(const ProviderScope(child: MyApp()));
+}
+```
+
+> **Why this is required:** `PermissionHandler.initialize()` sets up the `AppLifecycleObserver` that auto-refreshes the permission cache when the app returns from background (e.g., after the user changes permissions in device settings). Skipping this means stale cache won't be invalidated on resume.
+
+---
+
 ## Quick Start
 
 ```dart
@@ -212,7 +257,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:permission_handler_package/permission_handler_package.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await PermissionHandler.initialize();
   runApp(const ProviderScope(child: MyApp()));
 }
 
@@ -299,7 +346,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 | `PermissionType.microphone` | Microphone | Both | Audio recording access |
 | `PermissionType.contacts` | Contacts | Both | Read/write contacts |
 | `PermissionType.notifications` | Notifications | Both | Push notifications |
-| `PermissionType.calendar` | Calendar | Both | Calendar events access |
+| `PermissionType.calendarWriteOnly` | Calendar (Write Only) | Both | Write-only calendar access |
+| `PermissionType.calendarFullAccess` | Calendar (Full Access) | Both | Full calendar access |
 | `PermissionType.reminders` | Reminders | iOS only | Reminders access |
 | `PermissionType.bluetooth` | Bluetooth | Both | Bluetooth connectivity |
 | `PermissionType.sensors` | Sensors | Both | Body sensors / health data |
@@ -321,10 +369,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 | `PermissionGroup.media` | Media & Files | `storage`, `photos`, `videos`, `audio` |
 | `PermissionGroup.communication` | Communication | `camera`, `microphone`, `contacts` |
 | `PermissionGroup.locationServices` | Location Services | `location`, `locationAlways`, `locationWhenInUse` |
-| `PermissionGroup.calendar` | Calendar | `calendar`, `reminders` |
+| `PermissionGroup.calendar` | Calendar | `calendarWriteOnly`, `calendarFullAccess`, `reminders` |
 | `PermissionGroup.bluetooth` | Bluetooth | `bluetooth` |
 | `PermissionGroup.sensors` | Sensors | `sensors` |
 | `PermissionGroup.phone` | Phone | `phone`, `sms` |
+| `PermissionGroup.other` | Other Permissions | *(platform-specific extras)* |
 
 ### Platform Support Matrix
 
@@ -339,7 +388,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 | `microphone` | ✅ | ✅ |
 | `contacts` | ✅ | ✅ |
 | `notifications` | ✅ | ✅ |
-| `calendar` | ✅ | ✅ |
+| `calendarWriteOnly` | ✅ | ✅ |
+| `calendarFullAccess` | ✅ | ✅ |
 | `reminders` | ✅ | ❌ |
 | `bluetooth` | ✅ | ✅ |
 | `sensors` | ✅ | ✅ |
@@ -363,6 +413,7 @@ class CameraButton extends ConsumerWidget {
         final actionNotifier = ref.read(permissionActionProvider.notifier);
         final result = await actionNotifier.requestSinglePermission(
           PermissionType.camera,
+          context: context, // optional: pass context for auto dialogs
         );
 
         if (result.isGranted) {
@@ -390,6 +441,7 @@ class CommunicationButton extends ConsumerWidget {
         final actionNotifier = ref.read(permissionActionProvider.notifier);
         final results = await actionNotifier.requestPermissionGroup(
           PermissionGroup.communication,
+          context: context,
         );
 
         final allGranted = results.values.every((r) => r.isGranted);
@@ -472,7 +524,9 @@ class PermissionStatusWidget extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cameraStatus = ref.watch(permissionStatusProvider(PermissionType.camera));
+    final cameraStatus = ref.watch(
+      permissionStatusProvider(PermissionType.camera),
+    );
 
     return cameraStatus.when(
       data: (isGranted) => ListTile(
@@ -558,6 +612,7 @@ class _CustomPermissionExampleState
   void _setupPermissionCallbacks() {
     final actionNotifier = ref.read(permissionActionProvider.notifier);
 
+    // Per-permission explanation dialog
     actionNotifier.setPermissionExplanationCallback((permission) async {
       return await showDialog<bool>(
             context: context,
@@ -565,6 +620,31 @@ class _CustomPermissionExampleState
             builder: (context) => AlertDialog(
               title: Text('Why do we need ${permission.displayName}?'),
               content: Text(permission.description),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Not Now'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Allow'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+    });
+
+    // Per-group explanation dialog
+    actionNotifier.setGroupExplanationCallback((group) async {
+      return await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => AlertDialog(
+              title: Text('Why do we need ${group.displayName} access?'),
+              content: Text(
+                'This app needs ${group.displayName} permissions to function.',
+              ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context, false),
@@ -589,7 +669,10 @@ class _CustomPermissionExampleState
         child: ElevatedButton(
           onPressed: () async {
             final actionNotifier = ref.read(permissionActionProvider.notifier);
-            await actionNotifier.requestSinglePermission(PermissionType.camera);
+            await actionNotifier.requestSinglePermission(
+              PermissionType.camera,
+              context: context,
+            );
           },
           child: const Text('Request Camera with Explanation'),
         ),
@@ -650,8 +733,9 @@ class GroupStatusWidget extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final mediaGroupStatus =
-        ref.watch(permissionGroupStatusProvider(PermissionGroup.media));
+    final mediaGroupStatus = ref.watch(
+      permissionGroupStatusProvider(PermissionGroup.media),
+    );
 
     return mediaGroupStatus.when(
       data: (allGranted) => Card(
@@ -710,6 +794,99 @@ class ConditionalUI extends ConsumerWidget {
     );
   }
 }
+
+class PermissionRequestCard extends StatelessWidget {
+  final PermissionType permission;
+
+  const PermissionRequestCard({super.key, required this.permission});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Text('${permission.displayName} Permission Required'),
+            const SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: () async {
+                final container = ProviderScope.containerOf(context);
+                final actionNotifier =
+                    container.read(permissionActionProvider.notifier);
+                await actionNotifier.requestSinglePermission(
+                  permission,
+                  context: context,
+                );
+              },
+              child: const Text('Grant Permission'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+### 11. Smart Request (Request If Needed)
+
+```dart
+class SmartCameraButton extends ConsumerWidget {
+  const SmartCameraButton({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ElevatedButton(
+      onPressed: () async {
+        final actionNotifier = ref.read(permissionActionProvider.notifier);
+
+        // Only shows the system dialog if permission is not already granted
+        final result = await actionNotifier.requestIfNeeded(
+          PermissionType.camera,
+          context: context,
+        );
+
+        if (result.isGranted) {
+          _openCamera();
+        } else {
+          _showPermissionDeniedMessage();
+        }
+      },
+      child: const Text('Open Camera'),
+    );
+  }
+
+  void _openCamera() {}
+  void _showPermissionDeniedMessage() {}
+}
+```
+
+### 12. Reset Permission State
+
+```dart
+class ResetPermissionsButton extends ConsumerWidget {
+  const ResetPermissionsButton({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ElevatedButton(
+      onPressed: () {
+        ref.read(permissionActionProvider.notifier).reset();
+
+        // Optionally invalidate individual providers
+        ref.invalidate(permissionStateProvider);
+        ref.invalidate(permissionStatusProvider(PermissionType.camera));
+        ref.invalidate(permissionStatusProvider(PermissionType.storage));
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Permission state reset')),
+        );
+      },
+      child: const Text('Reset Permission State'),
+    );
+  }
+}
 ```
 
 ---
@@ -721,29 +898,38 @@ class ConditionalUI extends ConsumerWidget {
 | Method | Parameters | Returns | Description |
 |---|---|---|---|
 | `initializeRequiredPermissions()` | `context`, `requiredPermissions`, `requiredGroups?`, `showInitialScreen?`, `title?`, `message?` | `Future<bool>` | Initialize and request all required permissions |
-| `requestSinglePermission()` | `permission` | `Future<PermissionResult>` | Request a single permission |
-| `requestPermissionGroup()` | `group`, `showExplanation?` | `Future<Map<PermissionType, PermissionResult>>` | Request all permissions in a group |
+| `requestSinglePermission()` | `permission`, `context?` | `Future<PermissionResult>` | Request a single permission |
+| `requestPermissionGroup()` | `group`, `context?` | `Future<Map<PermissionType, PermissionResult>>` | Request all permissions in a group |
+| `requestIfNeeded()` | `permission`, `context?` | `Future<PermissionResult>` | Request only if permission is not already granted |
 | `setPermissionExplanationCallback()` | `callback` | `void` | Set custom explanation callback for permissions |
 | `setGroupExplanationCallback()` | `callback` | `void` | Set custom explanation callback for groups |
-| `reset()` | — | `void` | Reset permission state |
+| `removePermissionExplanationCallback()` | — | `void` | Remove custom explanation callback |
+| `removeGroupExplanationCallback()` | — | `void` | Remove group explanation callback |
+| `autoInitialize()` | — | `Future<void>` | Auto-initialize and cache all permission statuses |
+| `reset()` | — | `void` | Reset permission state and clear all cache |
 
 ### PermissionManager Methods
 
 | Method | Parameters | Returns | Description |
 |---|---|---|---|
-| `checkPermissionsStatus()` | `List<PermissionType>` | `Future<Map<PermissionType, PermissionResult>>` | Check status of multiple permissions |
-| `requestPermission()` | `PermissionType` | `Future<PermissionResult>` | Request a single permission |
-| `requestPermissions()` | `List<PermissionType>` | `Future<Map<PermissionType, PermissionResult>>` | Request multiple permissions |
-| `requestPermissionWithExplanation()` | `PermissionType`, `showExplanation?` | `Future<PermissionResult>` | Request with optional explanation dialog |
-| `requestPermissionGroup()` | `PermissionGroup`, `showExplanation?` | `Future<Map<PermissionType, PermissionResult>>` | Request a permission group |
+| `checkPermissionsStatus()` | `List<PermissionType>`, `bypassCache?` | `Future<Map<PermissionType, PermissionResult>>` | Check status of multiple permissions |
+| `requestPermission()` | `PermissionType`, `context?` | `Future<PermissionResult>` | Request a single permission |
+| `requestPermissions()` | `List<PermissionType>`, `context?` | `Future<Map<PermissionType, PermissionResult>>` | Request multiple permissions |
+| `requestPermissionWithExplanation()` | `PermissionType`, `context?`, `showExplanation?` | `Future<PermissionResult>` | Request with optional explanation dialog |
+| `requestPermissionGroup()` | `PermissionGroup`, `context?` | `Future<Map<PermissionType, PermissionResult>>` | Request a permission group |
 | `openAppSettings()` | — | `Future<void>` | Open app settings page |
 | `isPermissionGranted()` | `PermissionType` | `Future<bool>` | Check if a permission is granted |
 | `isPermissionPermanentlyDenied()` | `PermissionType` | `Future<bool>` | Check if permanently denied |
 | `checkGroupPermissionsStatus()` | `List<PermissionGroup>` | `Future<Map<PermissionGroup, bool>>` | Check group permissions status |
-| `isGroupSupported()` | `PermissionGroup` | `bool` | Check if group is supported on platform |
-| `getPlatformNote()` | `PermissionType` | `String` | Get platform-specific note |
+| `isGroupSupported()` | `PermissionGroup` | `bool` | Check if group is supported on the current platform |
+| `getPlatformNote()` | `PermissionType` | `String` | Get a platform-specific note for a permission |
 | `clearCache()` | `PermissionType` | `void` | Clear cache for a specific permission |
 | `clearAllCache()` | — | `void` | Clear all cached permission results |
+| `registerNavigatorKey()` | `GlobalKey<NavigatorState>` | `void` | Register a navigator key for context finding |
+| `unregisterNavigatorKey()` | `GlobalKey<NavigatorState>` | `void` | Unregister a navigator key |
+| `setCurrentContext()` | `BuildContext` | `void` | Set current context manually |
+| `getCurrentContext()` | — | `BuildContext?` | Get the current context |
+| `markInitialized()` | — | `void` | Mark manager as initialized |
 | `dispose()` | — | `void` | Dispose the manager |
 
 ### PermissionResult Properties
@@ -753,7 +939,7 @@ class ConditionalUI extends ConsumerWidget {
 | `permission` | `PermissionType` | The permission type |
 | `isGranted` | `bool` | Whether permission is granted |
 | `isPermanentlyDenied` | `bool` | Whether permanently denied |
-| `status` | `PermissionStatus` | Raw permission status |
+| `status` | `PermissionStatus` | Raw permission status from `permission_handler` |
 | `timestamp` | `DateTime` | When the result was created |
 | `isDenied` | `bool` | Whether permission is denied |
 | `isLimited` | `bool` | Whether permission is limited (iOS) |
@@ -765,34 +951,115 @@ class ConditionalUI extends ConsumerWidget {
 |---|---|---|
 | `displayName` | `String` | User-friendly group name |
 | `icon` | `String` | Emoji icon for the group |
-| `permissions` | `List<PermissionType>` | All permissions in the group |
+| `permissions` | `List<PermissionType>` | All permissions belonging to the group |
 
 ### Widgets
 
 | Widget | Purpose |
 |---|---|
-| `PermissionWrapper` | Wraps widgets that require permissions before rendering |
-| `PermissionBuilder` | Rebuilds UI reactively based on permission status |
-| `PermissionInitialDialog` | Dialog shown on initial permission request |
-| `PermissionDeniedDialog` | Dialog shown when a permission is denied |
-| `PermissionPermanentDialog` | Dialog shown when a permission is permanently denied |
+| `PermissionWrapper` | Wraps any widget tree behind a permission gate; handles loading and denied states automatically |
+| `PermissionBuilder` | Rebuilds UI reactively based on a single permission's status; shows a tap-to-grant prompt when denied |
+| `PermissionInitialDialog` | Dialog shown on the first permission request — lists all required permissions with icons |
+| `PermissionDeniedDialog` | Dialog shown when a permission is denied — includes retry count and retry/cancel actions |
+| `PermissionPermanentDialog` | Dialog shown when a permission is permanently denied — prompts user to open device settings |
 
 ### Providers
 
 | Provider | Type | Description |
 |---|---|---|
-| `permissionManagerProvider` | `Provider<PermissionManager>` | Provides `PermissionManager` instance |
-| `permissionStateProvider` | `ChangeNotifierProvider<PermissionNotifier>` | Provides permission state |
-| `permissionActionProvider` | `StateNotifierProvider<PermissionActionNotifier, AsyncValue<void>>` | Provides permission actions |
-| `permissionStatusProvider` | `FutureProvider.family<bool, PermissionType>` | Watches a single permission status |
-| `permissionsStatusProvider` | `FutureProvider.family<Map<PermissionType, bool>, List<PermissionType>>` | Watches multiple permissions |
-| `permissionGroupStatusProvider` | `FutureProvider.family<bool, PermissionGroup>` | Watches group permission status |
+| `permissionManagerProvider` | `Provider<PermissionManager>` | Provides the `PermissionManager` singleton; auto-disposed |
+| `permissionStateProvider` | `ChangeNotifierProvider<PermissionNotifier>` | Reactive permission state map across the app |
+| `permissionActionProvider` | `StateNotifierProvider<PermissionActionNotifier, AsyncValue<void>>` | All permission request actions and callbacks |
+| `permissionStatusProvider` | `FutureProvider.family<bool, PermissionType>` | Watches a single permission's granted status |
+| `permissionsStatusProvider` | `FutureProvider.family<Map<PermissionType, bool>, List<PermissionType>>` | Watches multiple permissions at once |
+| `permissionGroupStatusProvider` | `FutureProvider.family<bool, PermissionGroup>` | Watches whether all permissions in a group are granted |
+
+---
+
+## Advanced Features
+
+### Automatic Cache Management
+
+The package uses an intelligent caching layer with automatic invalidation:
+
+- **3-second TTL** — cache expires after 3 seconds to ensure fresh data
+- **Auto-refresh on resume** — cache clears automatically when the app returns from background (e.g., after the user changes permissions in device settings)
+- **Periodic refresh** — cache refreshes every 2 minutes in the background
+- **Change detection** — automatically detects and notifies on permission changes
+
+```dart
+// Cache is fully automatic. Manual control is available if needed:
+final manager = ref.read(permissionManagerProvider);
+
+manager.clearCache(PermissionType.camera);  // Clear one permission
+manager.clearAllCache();                    // Clear all
+
+// Bypass cache for an immediate fresh check
+final results = await manager.checkPermissionsStatus(
+  [PermissionType.camera],
+  bypassCache: true,
+);
+```
+
+### Lifecycle Gap Handling
+
+The package safely handles the window between `WidgetsBinding` initialization and the first available `BuildContext`:
+
+- **Operation queuing** — calls made before initialization completes are queued and replayed automatically
+- **Safe context access** — context is found via registered `NavigatorKey` or falls back gracefully
+- **Mount checks** — every async operation verifies `context.mounted` before continuing
+
+```dart
+// Always initialize before runApp to enable lifecycle handling
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await PermissionHandler.initialize();
+  runApp(const ProviderScope(child: MyApp()));
+}
+```
+
+### Permission Change Listening
+
+Subscribe to a real-time stream of permission status changes:
+
+```dart
+final manager = ref.read(permissionManagerProvider);
+
+manager.onPermissionChanged.listen((event) {
+  print('${event.permission.displayName} → ${event.result.isGranted}');
+});
+```
+
+You can also listen reactively via Riverpod:
+
+```dart
+ref.listen(permissionStateProvider, (previous, next) {
+  if (next.isPermissionGranted(PermissionType.camera)) {
+    print('Camera was just granted!');
+  }
+});
+```
+
+### Platform-Specific Notes
+
+Get a human-readable note explaining platform limitations for any permission:
+
+```dart
+final manager = ref.read(permissionManagerProvider);
+final note = manager.getPlatformNote(PermissionType.photos);
+
+if (note.isNotEmpty) {
+  print(note); // e.g. "iOS requires separate permission for photos"
+}
+```
 
 ---
 
 ## Customization
 
 ### Custom Theme Integration
+
+Dialogs and widgets automatically adopt your app's `ThemeData`:
 
 ```dart
 ThemeData myTheme() {
@@ -807,7 +1074,9 @@ ThemeData myTheme() {
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
       ),
     ),
   );
@@ -867,6 +1136,27 @@ PermissionWrapper(
 );
 ```
 
+### Custom Explanation Dialogs
+
+```dart
+// Set a custom pre-request explanation dialog
+actionNotifier.setPermissionExplanationCallback((permission) async {
+  return await showMyCustomDialog(
+    title: 'Why we need ${permission.displayName}',
+    message: permission.description,
+  );
+});
+
+// Set a custom group explanation dialog
+actionNotifier.setGroupExplanationCallback((group) async {
+  return await showMyGroupDialog(group);
+});
+
+// Remove callbacks to revert to package defaults
+actionNotifier.removePermissionExplanationCallback();
+actionNotifier.removeGroupExplanationCallback();
+```
+
 ---
 
 ## Cheatsheet
@@ -876,44 +1166,57 @@ PermissionWrapper(
 ```dart
 // Single permission
 final result = await ref.read(permissionActionProvider.notifier)
-    .requestSinglePermission(PermissionType.camera);
+    .requestSinglePermission(PermissionType.camera, context: context);
 
 // Permission group
 final results = await ref.read(permissionActionProvider.notifier)
-    .requestPermissionGroup(PermissionGroup.communication);
+    .requestPermissionGroup(PermissionGroup.communication, context: context);
 
-// Initialize multiple permissions
+// Multiple permissions + groups
 final granted = await ref.read(permissionActionProvider.notifier)
     .initializeRequiredPermissions(
       context: context,
       requiredPermissions: [PermissionType.camera, PermissionType.microphone],
+      requiredGroups: [PermissionGroup.media],
     );
+
+// Smart request — only if not already granted
+final result = await ref.read(permissionActionProvider.notifier)
+    .requestIfNeeded(PermissionType.camera, context: context);
 ```
 
 **Permission status checks:**
 
 ```dart
 // Watch single permission reactively
-final isGranted = ref.watch(permissionStatusProvider(PermissionType.camera)).value ?? false;
+final isGranted = ref.watch(
+  permissionStatusProvider(PermissionType.camera),
+).value ?? false;
 
 // Watch group permission reactively
-final groupGranted = ref.watch(permissionGroupStatusProvider(PermissionGroup.media)).value ?? false;
+final groupGranted = ref.watch(
+  permissionGroupStatusProvider(PermissionGroup.media),
+).value ?? false;
 
 // Manual async check
 final manager = ref.read(permissionManagerProvider);
 final isGranted = await manager.isPermissionGranted(PermissionType.camera);
+
+// Bypass cache for a fresh check
+final results = await manager.checkPermissionsStatus(
+  [PermissionType.camera],
+  bypassCache: true,
+);
 ```
 
 **Quick widget wrappers:**
 
 ```dart
-// Wrapper for protected screens
 PermissionWrapper(
   requiredPermissions: [PermissionType.camera],
   child: YourWidget(),
 )
 
-// Reactive builder
 PermissionBuilder(
   permission: PermissionType.camera,
   builder: (context, isGranted) => YourWidget(isGranted),
@@ -932,43 +1235,22 @@ if (Platform.isIOS) {
 }
 ```
 
-**Custom explanation callbacks:**
-
-```dart
-actionNotifier.setPermissionExplanationCallback((permission) async {
-  return await showMyCustomDialog();
-});
-
-actionNotifier.setGroupExplanationCallback((group) async {
-  return await showMyGroupDialog();
-});
-```
-
-**Quick check and request:**
+**Cache management:**
 
 ```dart
 final manager = ref.read(permissionManagerProvider);
-final hasPermission = await manager.isPermissionGranted(PermissionType.camera);
-
-if (!hasPermission) {
-  final result = await manager.requestPermission(PermissionType.camera);
-  if (result.isGranted) {
-    // Proceed
-  }
-}
+manager.clearCache(PermissionType.camera);  // Clear specific
+manager.clearAllCache();                    // Clear all
 ```
 
-**Listen to permission changes:**
+**Reset state:**
 
 ```dart
-ref.listen(permissionStateProvider, (previous, next) {
-  if (next.isPermissionGranted(PermissionType.camera)) {
-    print('Camera permission granted!');
-  }
-});
+ref.read(permissionActionProvider.notifier).reset();
+ref.invalidate(permissionStateProvider);
 ```
 
-**Common permission combinations:**
+**Common app permission combinations:**
 
 ```dart
 // Camera app
@@ -985,6 +1267,9 @@ requiredGroups: [PermissionGroup.communication, PermissionGroup.media]
 
 // Health app
 requiredPermissions: [PermissionType.sensors]
+
+// Calendar app
+requiredGroups: [PermissionGroup.calendar]
 ```
 
 ---
@@ -993,11 +1278,11 @@ requiredPermissions: [PermissionType.sensors]
 
 **Permission dialog not showing**
 
-Ensure permissions are declared in your platform-specific files — `AndroidManifest.xml` for Android, `Info.plist` for iOS.
+Ensure the required permissions are declared in your platform files — `AndroidManifest.xml` for Android, `Info.plist` for iOS.
 
 **Permanently denied not detected**
 
-Clear app data or reinstall to reset permission state.
+Clear the app's data or reinstall to reset all permission states.
 
 ```bash
 # Android
@@ -1021,21 +1306,16 @@ void main() {
 Initialize `ScreenUtilInit` at the top of your widget tree:
 
 ```dart
-class MyApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return ScreenUtilInit(
-      designSize: const Size(375, 812),
-      builder: (context, child) => MaterialApp(home: child),
-      child: const HomePage(),
-    );
-  }
-}
+return ScreenUtilInit(
+  designSize: const Size(375, 812),
+  builder: (context, child) => MaterialApp(home: child),
+  child: const HomePage(),
+);
 ```
 
 **Memory leaks**
 
-Dispose `PermissionManager` when done:
+`PermissionManager` is disposed automatically via `ref.onDispose` in `permissionManagerProvider`. For manual usage outside Riverpod:
 
 ```dart
 @override
@@ -1045,9 +1325,42 @@ void dispose() {
 }
 ```
 
+**Context not available errors**
+
+Always call `PermissionHandler.initialize()` before `runApp()`:
+
+```dart
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await PermissionHandler.initialize();
+  runApp(const ProviderScope(child: MyApp()));
+}
+```
+
+**Cache not updating after settings change**
+
+Cache auto-refreshes on app resume when properly initialized. For an immediate forced refresh:
+
+```dart
+final results = await manager.checkPermissionsStatus(
+  [PermissionType.camera],
+  bypassCache: true,
+);
+```
+
 ---
 
 ## FAQ
+
+**Q: How do I initialize the package?**
+
+```dart
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await PermissionHandler.initialize();
+  runApp(const ProviderScope(child: MyApp()));
+}
+```
 
 **Q: How do I request permissions on app startup?**
 
@@ -1074,7 +1387,7 @@ Future<void> _requestPermissions() async {
 ```dart
 final cameraStatus  = ref.watch(permissionStatusProvider(PermissionType.camera));
 final storageStatus = ref.watch(permissionStatusProvider(PermissionType.storage));
-// Each provider updates independently
+// Each provider updates independently — no coupling between them
 ```
 
 **Q: Can I use this without Riverpod?**
@@ -1085,6 +1398,8 @@ Yes, use `PermissionManager` directly:
 final manager = PermissionManager();
 final granted = await manager.isPermissionGranted(PermissionType.camera);
 ```
+
+Note: you lose reactive updates and automatic disposal — Riverpod is strongly recommended.
 
 **Q: How do I test permissions in development?**
 
@@ -1101,39 +1416,57 @@ No. This package targets mobile platforms (iOS and Android) only.
 
 ```dart
 ref.read(permissionActionProvider.notifier).reset();
+ref.invalidate(permissionStateProvider);
 ```
 
 **Q: How do I open app settings manually?**
 
 ```dart
-final manager = ref.read(permissionManagerProvider);
-await manager.openAppSettings();
+await ref.read(permissionManagerProvider).openAppSettings();
 ```
 
 **Q: How do I check if a permission group is supported on the current platform?**
 
 ```dart
-final manager = ref.read(permissionManagerProvider);
-final isSupported = manager.isGroupSupported(PermissionGroup.media);
+final isSupported = ref.read(permissionManagerProvider)
+    .isGroupSupported(PermissionGroup.media);
 ```
 
 **Q: How do I clear the permission cache?**
 
 ```dart
 final manager = ref.read(permissionManagerProvider);
-manager.clearCache(PermissionType.camera); // Clear specific permission
+manager.clearCache(PermissionType.camera); // Clear one
 manager.clearAllCache();                   // Clear all
 ```
 
 **Q: How do I get platform-specific notes for a permission?**
 
 ```dart
-final manager = ref.read(permissionManagerProvider);
-final note = manager.getPlatformNote(PermissionType.photos);
-if (note.isNotEmpty) {
-  print(note); // e.g. "iOS requires separate permission for photos"
-}
+final note = ref.read(permissionManagerProvider)
+    .getPlatformNote(PermissionType.photos);
+if (note.isNotEmpty) print(note);
 ```
+
+**Q: How do I listen to permission changes in real-time?**
+
+```dart
+ref.read(permissionManagerProvider).onPermissionChanged.listen((event) {
+  print('${event.permission.displayName} changed!');
+});
+```
+
+**Q: What is the difference between `requestSinglePermission` and `requestIfNeeded`?**
+
+`requestSinglePermission` always shows the system permission dialog. `requestIfNeeded` checks first and skips the dialog if the permission is already granted — useful for buttons that should work silently when permission is already in place.
+
+**Q: How does automatic cache invalidation work on app resume?**
+
+When `PermissionHandler.initialize()` is called, it registers a `WidgetsBindingObserver`. When `AppLifecycleState.resumed` fires (i.e., the user returns from device settings), the cache is cleared and all permissions are re-checked automatically.
+
+**Q: What happens if I call methods before initialization completes?**
+
+Operations are queued internally and executed automatically once initialization finishes — nothing is dropped.
 
 ---
 
@@ -1145,7 +1478,7 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 ## Contributing
 
-Pull requests and issues are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Pull requests and issues are welcome. Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
 

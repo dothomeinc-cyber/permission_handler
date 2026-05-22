@@ -25,20 +25,17 @@ class PermissionState {
     );
   }
 
-  // Fixed copyWith method - using a simple boolean flag instead of sentinel
   PermissionState copyWith({
     Map<PermissionType, PermissionResult>? permissions,
     bool? isInitialized,
     bool? isLoading,
-    bool clearError =
-        false, // Use boolean flag instead of sentinel
-    String? error,
+    Object? error,
   }) {
     return PermissionState(
       permissions: permissions ?? this.permissions,
       isInitialized: isInitialized ?? this.isInitialized,
       isLoading: isLoading ?? this.isLoading,
-      error: clearError ? null : error ?? this.error,
+      error: error == null ? this.error : error as String?,
     );
   }
 
@@ -94,8 +91,7 @@ class PermissionNotifier extends ChangeNotifier {
   }
 
   void clearError() {
-    // Use clearError flag to explicitly set error to null
-    _state = _state.copyWith(clearError: true);
+    _state = _state.copyWith(error: null);
     notifyListeners();
   }
 

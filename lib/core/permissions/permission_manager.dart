@@ -1,6 +1,8 @@
-import 'dart:async';
-import 'dart:io';
+// ignore_for_file: unused_field
 
+import 'dart:async';
+
+import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart'
     as ph;
 import 'models/permission_type.dart';
@@ -15,9 +17,12 @@ class PermissionManager {
   static final PermissionManager _instance =
       PermissionManager._internal();
   factory PermissionManager() => _instance;
-  PermissionManager._internal();
+  PermissionManager._internal() {
+    _setupAutomaticLifecycleHandler();
+    _startAutomaticCacheInvalidation();
+  }
 
-  final Map<PermissionType, PermissionResult>
+  final Map<PermissionType, _CachedPermission>
   _permissionCache = {};
   final StreamController<PermissionChangeEvent>
   _onPermissionChanged =
@@ -27,28 +32,176 @@ class PermissionManager {
       _onPermissionChanged.stream;
 
   bool _isDisposed = false;
+  bool _isInitialized = false; // Track initialization state
+  AppLifecycleState _appLifecycleState =
+      AppLifecycleState.resumed;
+  Timer? _autoRefreshTimer;
 
-  // Custom explanation callbacks
+  BuildContext? _currentContext;
+  final List<GlobalKey<NavigatorState>> _navigatorKeys = [];
+  final List<VoidCallback> _pendingCallbacks =
+      []; // Queue for pending operations
+
+  final bool _autoInvalidateOnResume = true;
+  final bool _autoRefreshPeriodically = true;
+  final int _cacheTTLSeconds = 3;
+  final int _periodicRefreshMinutes = 2;
+
   PermissionExplanationCallback? _onBeforePermissionRequest;
   PermissionGroupExplanationCallback? _onBeforeGroupRequest;
 
-  /// Set callback for showing custom explanation before requesting permission
+  final Map<PermissionType, String> _defaultExplanations = {
+    PermissionType.camera:
+        'We need camera access to take photos and scan documents',
+    PermissionType.microphone:
+        'We need microphone access for voice recording and calls',
+    PermissionType.location:
+        'We need location access to find nearby places',
+    PermissionType.storage:
+        'We need storage access to save and manage files',
+    PermissionType.photos:
+        'We need photo access to select and save images',
+    PermissionType.videos:
+        'We need video access to record and share videos',
+    PermissionType.audio:
+        'We need audio access to play and manage music',
+    PermissionType.contacts:
+        'We need contact access to share with friends',
+    PermissionType.notifications:
+        'We need notification access to send you alerts',
+    PermissionType.calendarWriteOnly:
+        'We need calendar access to schedule events',
+    PermissionType.calendarFullAccess:
+        'We need calendar access to manage events',
+    PermissionType.reminders:
+        'We need reminder access to set notifications',
+    PermissionType.bluetooth:
+        'We need bluetooth access to connect to devices',
+    PermissionType.sensors:
+        'We need sensor access for health tracking',
+    PermissionType.sms:
+        'We need SMS access to verify your number',
+    PermissionType.phone:
+        'We need phone access to make calls',
+  };
+
+  /// Mark manager as initialized (call after WidgetsFlutterBinding.ensureInitialized())
+  void markInitialized() {
+    if (!_isInitialized) {
+      _isInitialized = true;
+      _processPendingCallbacks();
+    }
+  }
+
+  /// Process any pending operations that were queued before initialization
+  void _processPendingCallbacks() {
+    for (var callback in _pendingCallbacks) {
+      callback();
+    }
+    _pendingCallbacks.clear();
+  }
+
+  /// Execute operation safely, queuing if not initialized
+  void _safeExecute(VoidCallback operation) {
+    if (_isInitialized) {
+      operation();
+    } else {
+      _pendingCallbacks.add(operation);
+    }
+  }
+
+  void registerNavigatorKey(GlobalKey<NavigatorState> key) {
+    _safeExecute(() {
+      if (!_navigatorKeys.contains(key)) {
+        _navigatorKeys.add(key);
+      }
+    });
+  }
+
+  void unregisterNavigatorKey(
+    GlobalKey<NavigatorState> key,
+  ) {
+    _safeExecute(() {
+      _navigatorKeys.remove(key);
+    });
+  }
+
+  void setCurrentContext(BuildContext context) {
+    _safeExecute(() {
+      _currentContext = context;
+    });
+  }
+
   void setOnBeforePermissionRequest(
-    PermissionExplanationCallback callback,
+    PermissionExplanationCallback? callback,
   ) {
-    _onBeforePermissionRequest = callback;
+    _safeExecute(() {
+      _onBeforePermissionRequest = callback;
+    });
   }
 
-  /// Set callback for showing custom explanation before requesting permission group
   void setOnBeforeGroupRequest(
-    PermissionGroupExplanationCallback callback,
+    PermissionGroupExplanationCallback? callback,
   ) {
-    _onBeforeGroupRequest = callback;
+    _safeExecute(() {
+      _onBeforeGroupRequest = callback;
+    });
   }
 
-  /// Request permission with optional explanation
+  BuildContext? getCurrentContext() {
+    if (!_isInitialized) return null;
+
+    if (_currentContext != null &&
+        _currentContext!.mounted) {
+      return _currentContext;
+    }
+    for (var key in _navigatorKeys) {
+      if (key.currentContext != null &&
+          key.currentContext!.mounted) {
+        return key.currentContext;
+      }
+    }
+    return null;
+  }
+
+  Future<Map<PermissionType, PermissionResult>>
+  checkPermissionsStatus(
+    List<PermissionType> permissions, {
+    bool bypassCache = false,
+  }) async {
+    if (_isDisposed) return {};
+    final results = <PermissionType, PermissionResult>{};
+    for (var permission in permissions) {
+      if (!bypassCache &&
+          _permissionCache.containsKey(permission)) {
+        final cached = _permissionCache[permission]!;
+        if (DateTime.now()
+                .difference(cached.timestamp)
+                .inSeconds <
+            _cacheTTLSeconds) {
+          results[permission] = cached.result;
+          continue;
+        }
+      }
+      final status = await permission.permission.status;
+      final result = PermissionResult(
+        permission: permission,
+        isGranted: status.isGranted,
+        isPermanentlyDenied: status.isPermanentlyDenied,
+        status: status,
+      );
+      results[permission] = result;
+      _permissionCache[permission] = _CachedPermission(
+        result: result,
+        timestamp: DateTime.now(),
+      );
+    }
+    return results;
+  }
+
   Future<PermissionResult> requestPermissionWithExplanation(
     PermissionType permission, {
+    BuildContext? context,
     bool showExplanation = true,
   }) async {
     if (_isDisposed) {
@@ -57,18 +210,40 @@ class PermissionManager {
       );
     }
 
-    // Show custom explanation if requested and callback is set
+    // Wait for initialization if needed
+    if (!_isInitialized) {
+      await Future.delayed(Duration.zero);
+    }
+
+    if (await isPermissionGranted(permission)) {
+      return PermissionResult(
+        permission: permission,
+        isGranted: true,
+        isPermanentlyDenied: false,
+        status: ph.PermissionStatus.granted,
+      );
+    }
+
+    final ctx = context ?? getCurrentContext();
     if (showExplanation &&
-        _onBeforePermissionRequest != null) {
-      final shouldContinue =
-          await _onBeforePermissionRequest!(permission);
-      if (!shouldContinue) {
-        return PermissionResult(
-          permission: permission,
-          isGranted: false,
-          isPermanentlyDenied: false,
-          status: ph.PermissionStatus.denied,
-        );
+        _defaultExplanations.containsKey(permission) &&
+        ctx != null) {
+      if (!ctx.mounted) {
+        // Context is not mounted, skip explanation
+      } else {
+        final shouldContinue =
+            await _showAutoExplanationDialog(
+              ctx,
+              permission,
+            );
+        if (!shouldContinue) {
+          return PermissionResult(
+            permission: permission,
+            isGranted: false,
+            isPermanentlyDenied: false,
+            status: ph.PermissionStatus.denied,
+          );
+        }
       }
     }
 
@@ -80,121 +255,169 @@ class PermissionManager {
       status: status,
     );
 
-    _permissionCache[permission] = result;
-    if (!_isDisposed) {
-      _onPermissionChanged.add(
-        PermissionChangeEvent(
-          permission: permission,
-          result: result,
-        ),
-      );
+    _permissionCache[permission] = _CachedPermission(
+      result: result,
+      timestamp: DateTime.now(),
+    );
+
+    _onPermissionChanged.add(
+      PermissionChangeEvent(
+        permission: permission,
+        result: result,
+      ),
+    );
+
+    if (result.isPermanentlyDenied &&
+        ctx != null &&
+        ctx.mounted) {
+      await _showPermanentDenialDialog(ctx, permission);
     }
 
     return result;
   }
 
-  /// Request permission group with explanation
-  Future<Map<PermissionType, PermissionResult>>
-  requestPermissionGroup(
-    PermissionGroup group, {
-    bool showExplanation = true,
-  }) async {
-    if (_isDisposed) return {};
+  Future<bool> _showAutoExplanationDialog(
+    BuildContext context,
+    PermissionType permission,
+  ) async {
+    if (!context.mounted) return true;
 
-    // Show custom group explanation if requested and callback is set
-    if (showExplanation && _onBeforeGroupRequest != null) {
-      final shouldContinue = await _onBeforeGroupRequest!(
-        group,
-      );
-      if (!shouldContinue) {
-        return {};
-      }
-    }
-
-    final permissions = group.permissions;
-    final results = <PermissionType, PermissionResult>{};
-
-    for (var permission in permissions) {
-      final result = await requestPermissionWithExplanation(
-        permission,
-        showExplanation: false, // Already shown for group
-      );
-      results[permission] = result;
-    }
-
-    return results;
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder:
+              (dialogContext) => AlertDialog(
+                title: Row(
+                  children: [
+                    Text(
+                      permission.icon,
+                      style: const TextStyle(fontSize: 32),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        '${permission.displayName} Permission',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                content: Text(
+                  _defaultExplanations[permission]!,
+                ),
+                actions: [
+                  TextButton(
+                    onPressed:
+                        () => Navigator.pop(
+                          dialogContext,
+                          false,
+                        ),
+                    child: const Text('Not Now'),
+                  ),
+                  ElevatedButton(
+                    onPressed:
+                        () => Navigator.pop(
+                          dialogContext,
+                          true,
+                        ),
+                    child: const Text('Allow'),
+                  ),
+                ],
+              ),
+        ) ??
+        false;
   }
 
-  Future<Map<PermissionType, PermissionResult>>
-  checkPermissionsStatus(
-    List<PermissionType> permissions,
+  Future<void> _showPermanentDenialDialog(
+    BuildContext context,
+    PermissionType permission,
   ) async {
-    if (_isDisposed) return {};
+    if (!context.mounted) return;
 
-    final results = <PermissionType, PermissionResult>{};
+    final shouldOpenSettings =
+        await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder:
+              (dialogContext) => AlertDialog(
+                title: const Text(
+                  'Permission Permanently Denied',
+                ),
+                content: Text(
+                  'You have permanently denied ${permission.displayName} permission. '
+                  'Please enable it in settings to use this feature.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed:
+                        () => Navigator.pop(
+                          dialogContext,
+                          false,
+                        ),
+                    child: const Text('Cancel'),
+                  ),
+                  ElevatedButton(
+                    onPressed:
+                        () => Navigator.pop(
+                          dialogContext,
+                          true,
+                        ),
+                    child: const Text('Open Settings'),
+                  ),
+                ],
+              ),
+        ) ??
+        false;
 
-    for (var permission in permissions) {
-      final status = await permission.permission.status;
-      final result = PermissionResult(
-        permission: permission,
-        isGranted: status.isGranted,
-        isPermanentlyDenied: status.isPermanentlyDenied,
-        status: status,
-      );
-
-      results[permission] = result;
-      _permissionCache[permission] = result;
+    if (shouldOpenSettings) {
+      await openAppSettings();
     }
-
-    return results;
   }
 
   Future<PermissionResult> requestPermission(
-    PermissionType permission,
-  ) async {
+    PermissionType permission, {
+    BuildContext? context,
+  }) async {
     return await requestPermissionWithExplanation(
       permission,
+      context: context,
     );
   }
 
   Future<Map<PermissionType, PermissionResult>>
   requestPermissions(
-    List<PermissionType> permissions,
-  ) async {
+    List<PermissionType> permissions, {
+    BuildContext? context,
+  }) async {
     if (_isDisposed) return {};
-
-    final phPermissions =
-        permissions.map((p) => p.permission).toList();
-    final statuses = await phPermissions.request();
-
     final results = <PermissionType, PermissionResult>{};
-
-    for (var i = 0; i < permissions.length; i++) {
-      final permission = permissions[i];
-      final status = statuses[phPermissions[i]];
-
-      if (status != null) {
-        final result = PermissionResult(
-          permission: permission,
-          isGranted: status.isGranted,
-          isPermanentlyDenied: status.isPermanentlyDenied,
-          status: status,
-        );
-
-        results[permission] = result;
-        _permissionCache[permission] = result;
-
-        if (!_isDisposed) {
-          _onPermissionChanged.add(
-            PermissionChangeEvent(
-              permission: permission,
-              result: result,
-            ),
-          );
-        }
-      }
+    final localContext = context;
+    for (var permission in permissions) {
+      final result = await requestPermission(
+        permission,
+        context: localContext,
+      );
+      results[permission] = result;
     }
+    return results;
+  }
 
+  Future<Map<PermissionType, PermissionResult>>
+  requestPermissionGroup(
+    PermissionGroup group, {
+    BuildContext? context,
+  }) async {
+    final results = <PermissionType, PermissionResult>{};
+    final localContext = context;
+    for (var permission in group.permissions) {
+      final result = await requestPermission(
+        permission,
+        context: localContext,
+      );
+      results[permission] = result;
+    }
     return results;
   }
 
@@ -208,24 +431,42 @@ class PermissionManager {
     PermissionType permission,
   ) async {
     if (_isDisposed) return false;
-
-    if (!_isPermissionSupported(permission)) {
-      return false;
+    if (_permissionCache.containsKey(permission)) {
+      final cached = _permissionCache[permission]!;
+      if (DateTime.now()
+              .difference(cached.timestamp)
+              .inSeconds <
+          _cacheTTLSeconds) {
+        return cached.result.isGranted;
+      }
     }
-
     final status = await permission.permission.status;
-    return status.isGranted;
+    final isGranted = status.isGranted;
+    _permissionCache[permission] = _CachedPermission(
+      result: PermissionResult(
+        permission: permission,
+        isGranted: isGranted,
+        isPermanentlyDenied: status.isPermanentlyDenied,
+        status: status,
+      ),
+      timestamp: DateTime.now(),
+    );
+    return isGranted;
   }
 
   Future<bool> isPermissionPermanentlyDenied(
     PermissionType permission,
   ) async {
     if (_isDisposed) return false;
-
-    if (!_isPermissionSupported(permission)) {
-      return false;
+    if (_permissionCache.containsKey(permission)) {
+      final cached = _permissionCache[permission]!;
+      if (DateTime.now()
+              .difference(cached.timestamp)
+              .inSeconds <
+          _cacheTTLSeconds) {
+        return cached.result.isPermanentlyDenied;
+      }
     }
-
     final status = await permission.permission.status;
     return status.isPermanentlyDenied;
   }
@@ -235,202 +476,133 @@ class PermissionManager {
     List<PermissionGroup> groups,
   ) async {
     final results = <PermissionGroup, bool>{};
-
     for (var group in groups) {
       final permissions = group.permissions;
       if (permissions.isEmpty) {
         results[group] = false;
         continue;
       }
-
-      final statuses = await checkPermissionsStatus(
-        permissions,
-      );
-      final allGranted = statuses.values.every(
-        (r) => r.isGranted,
-      );
+      bool allGranted = true;
+      for (var permission in permissions) {
+        if (!await isPermissionGranted(permission)) {
+          allGranted = false;
+          break;
+        }
+      }
       results[group] = allGranted;
     }
-
     return results;
   }
 
-  bool _isPermissionSupported(PermissionType permission) {
-    if (Platform.isIOS) {
-      switch (permission) {
-        // Supported on iOS
-        case PermissionType.photos:
-        case PermissionType.videos:
-        case PermissionType.audio:
-        case PermissionType.reminders:
-        case PermissionType.locationAlways:
-        case PermissionType.locationWhenInUse:
-        case PermissionType.notifications:
-        case PermissionType.camera:
-        case PermissionType.microphone:
-        case PermissionType.contacts:
-        case PermissionType.calendar:
-        case PermissionType.bluetooth:
-        case PermissionType.sensors:
-        case PermissionType.appTrackingTransparency:
-        case PermissionType.criticalAlerts:
-          return true;
-
-        // Not supported or different on iOS
-        case PermissionType.sms:
-        case PermissionType.phone:
-        case PermissionType.storage:
-          return false;
-
-        default:
-          return true;
-      }
-    }
-
-    if (Platform.isAndroid) {
-      switch (permission) {
-        // Not supported on Android (iOS only)
-        case PermissionType.photos:
-        case PermissionType.videos:
-        case PermissionType.audio:
-        case PermissionType.reminders:
-          return false;
-
-        // Supported on Android
-        case PermissionType.storage:
-        case PermissionType.camera:
-        case PermissionType.microphone:
-        case PermissionType.contacts:
-        case PermissionType.location:
-        case PermissionType.locationAlways:
-        case PermissionType.locationWhenInUse:
-        case PermissionType.notifications:
-        case PermissionType.calendar:
-        case PermissionType.bluetooth:
-        case PermissionType.sensors:
-        case PermissionType.phone:
-        case PermissionType.sms:
-        case PermissionType.scheduleExactAlarm:
-        case PermissionType.ignoreBatteryOptimizations:
-        case PermissionType.manageExternalStorage:
-        case PermissionType.systemAlertWindow:
-        case PermissionType.requestInstallPackages:
-        case PermissionType.accessNotificationPolicy:
-          return true;
-
-        default:
-          return true;
-      }
-    }
-
-    return false;
-  }
-
-  /// Check if a permission group is supported on current platform
-  bool isGroupSupported(PermissionGroup group) {
-    if (Platform.isIOS) {
-      switch (group) {
-        case PermissionGroup.media:
-          return true; // photos, videos, audio are supported on iOS
-        case PermissionGroup.communication:
-          return true;
-        case PermissionGroup.locationServices:
-          return true;
-        case PermissionGroup.calendar:
-          return true;
-        case PermissionGroup.bluetooth:
-          return true;
-        case PermissionGroup.sensors:
-          return true;
-        case PermissionGroup.phone:
-          return false; // Phone/SMS not fully supported on iOS
-        case PermissionGroup.other:
-          return true;
-      }
-    }
-
-    if (Platform.isAndroid) {
-      switch (group) {
-        case PermissionGroup.media:
-          return true; // storage permission on Android
-        case PermissionGroup.communication:
-          return true;
-        case PermissionGroup.locationServices:
-          return true;
-        case PermissionGroup.calendar:
-          return true;
-        case PermissionGroup.bluetooth:
-          return true;
-        case PermissionGroup.sensors:
-          return true;
-        case PermissionGroup.phone:
-          return true;
-        case PermissionGroup.other:
-          return true;
-      }
-    }
-
-    return false;
-  }
-
-  /// Get platform-specific permission note
-  String getPlatformNote(PermissionType permission) {
-    if (Platform.isIOS) {
-      switch (permission) {
-        case PermissionType.photos:
-          return 'iOS requires separate permission for photos';
-        case PermissionType.videos:
-          return 'iOS requires separate permission for videos';
-        case PermissionType.audio:
-          return 'iOS requires separate permission for audio';
-        case PermissionType.storage:
-          return 'iOS uses limited file system access';
-        default:
-          return '';
-      }
-    }
-
-    if (Platform.isAndroid) {
-      switch (permission) {
-        case PermissionType.photos:
-        case PermissionType.videos:
-        case PermissionType.audio:
-          return 'Android uses storage permission for media access';
-        default:
-          return '';
-      }
-    }
-
-    return '';
-  }
-
-  bool isPlatformSupported() {
-    return Platform.isAndroid || Platform.isIOS;
-  }
-
-  /// Clear cache for specific permission
   void clearCache(PermissionType permission) {
-    _permissionCache.remove(permission);
+    if (!_isDisposed) {
+      _permissionCache.remove(permission);
+    }
   }
 
-  /// Clear all cache
   void clearAllCache() {
-    _permissionCache.clear();
+    if (!_isDisposed) {
+      _permissionCache.clear();
+    }
   }
+
+  bool get isDisposed => _isDisposed;
+  bool get isInitialized => _isInitialized;
 
   void dispose() {
     if (!_isDisposed) {
       _isDisposed = true;
+      _autoRefreshTimer?.cancel();
       _onPermissionChanged.close();
       _permissionCache.clear();
+      _pendingCallbacks.clear();
     }
+  }
+
+  // Private methods
+  void _setupAutomaticLifecycleHandler() {
+    // Ensure WidgetsBinding is available
+    WidgetsBinding.instance.addObserver(
+      AppLifecycleObserver(this),
+    );
+  }
+
+  void _startAutomaticCacheInvalidation() {
+    if (_autoRefreshPeriodically) {
+      _autoRefreshTimer = Timer.periodic(
+        Duration(minutes: _periodicRefreshMinutes),
+        (_) => _automaticCacheRefresh(),
+      );
+    }
+  }
+
+  Future<void> _automaticCacheRefresh() async {
+    if (_isDisposed || _permissionCache.isEmpty) return;
+    await _refreshAllPermissions();
+  }
+
+  void onAppLifecycleStateChanged(AppLifecycleState state) {
+    final previousState = _appLifecycleState;
+    _appLifecycleState = state;
+    if (previousState == AppLifecycleState.paused &&
+        state == AppLifecycleState.resumed &&
+        _autoInvalidateOnResume) {
+      _refreshOnResume();
+    }
+  }
+
+  Future<void> _refreshOnResume() async {
+    await _refreshAllPermissions();
+  }
+
+  Future<void> _refreshAllPermissions() async {
+    if (_isDisposed || _permissionCache.isEmpty) return;
+    final permissionsToCheck =
+        _permissionCache.keys.toList();
+    final newResults = await checkPermissionsStatus(
+      permissionsToCheck,
+    );
+    for (var entry in newResults.entries) {
+      final cached = _permissionCache[entry.key];
+      if (cached != null &&
+          cached.result.isGranted !=
+              entry.value.isGranted) {
+        _onPermissionChanged.add(
+          PermissionChangeEvent(
+            permission: entry.key,
+            result: entry.value,
+          ),
+        );
+      }
+      _permissionCache[entry.key] = _CachedPermission(
+        result: entry.value,
+        timestamp: DateTime.now(),
+      );
+    }
+  }
+}
+
+class _CachedPermission {
+  final PermissionResult result;
+  final DateTime timestamp;
+  _CachedPermission({
+    required this.result,
+    required this.timestamp,
+  });
+}
+
+class AppLifecycleObserver extends WidgetsBindingObserver {
+  final PermissionManager manager;
+  AppLifecycleObserver(this.manager);
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    manager.onAppLifecycleStateChanged(state);
   }
 }
 
 class PermissionChangeEvent {
   final PermissionType permission;
   final PermissionResult result;
-
   PermissionChangeEvent({
     required this.permission,
     required this.result,
