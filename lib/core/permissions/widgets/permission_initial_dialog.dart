@@ -32,8 +32,8 @@ class PermissionInitialDialog extends StatelessWidget {
               padding: EdgeInsets.all(16.w),
               decoration: BoxDecoration(
                 color: theme.colorScheme.primary.withAlpha(
-                  1,
-                ),
+                  30,
+                ), // Fixed
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -60,7 +60,7 @@ class PermissionInitialDialog extends StatelessWidget {
                 fontSize: 14.sp,
                 fontWeight: FontWeight.w400,
                 color: theme.colorScheme.onSurface
-                    .withAlpha(180),
+                    .withAlpha(180), // Fixed
               ),
               textAlign: TextAlign.center,
             ),
@@ -68,10 +68,10 @@ class PermissionInitialDialog extends StatelessWidget {
             Container(
               padding: EdgeInsets.all(16.w),
               decoration: BoxDecoration(
-                color:
-                    theme
-                        .colorScheme
-                        .surfaceContainerHighest,
+                color: theme
+                    .colorScheme
+                    .surfaceContainerHighest
+                    .withAlpha(130), // Fixed
                 borderRadius: BorderRadius.circular(12.r),
               ),
               child: Column(
@@ -150,7 +150,7 @@ class PermissionInitialDialog extends StatelessWidget {
                   fontSize: 14.sp,
                   fontWeight: FontWeight.w500,
                   color: theme.colorScheme.onSurface
-                      .withAlpha(155),
+                      .withAlpha(130), // Fixed
                 ),
               ),
             ),

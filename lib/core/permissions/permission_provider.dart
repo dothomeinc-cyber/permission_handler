@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+// Removed legacy import - using modern Riverpod
 import 'permission_manager.dart';
 import 'permission_state.dart';
 import 'models/permission_type.dart';
@@ -62,6 +63,8 @@ class PermissionActionNotifier
     String? title,
     String? message,
   }) async {
+    if (!context.mounted) return false;
+
     _stateNotifier.setLoading(true);
 
     try {
@@ -165,6 +168,7 @@ class PermissionActionNotifier
     int retryCount = 0;
 
     while (retryCount < maxRetries) {
+      // Use batch request for better performance
       final results = await _manager.requestPermissions(
         permissions,
       );

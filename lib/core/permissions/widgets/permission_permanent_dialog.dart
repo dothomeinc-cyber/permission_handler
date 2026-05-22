@@ -31,7 +31,9 @@ class PermissionPermanentDialog extends StatelessWidget {
             Container(
               padding: EdgeInsets.all(16.w),
               decoration: BoxDecoration(
-                color: theme.colorScheme.error.withAlpha(1),
+                color: theme.colorScheme.error.withOpacity(
+                  0.1,
+                ), // Fixed
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -60,7 +62,7 @@ class PermissionPermanentDialog extends StatelessWidget {
                 fontSize: 14.sp,
                 fontWeight: FontWeight.w400,
                 color: theme.colorScheme.onSurface
-                    .withAlpha(180),
+                    .withOpacity(0.7), // Fixed
               ),
               textAlign: TextAlign.center,
             ),
@@ -103,8 +105,8 @@ class PermissionPermanentDialog extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(
                     color: theme.colorScheme.primary
-                        .withAlpha(100),
-                  ),
+                        .withOpacity(0.3),
+                  ), // Fixed
                   padding: EdgeInsets.symmetric(
                     horizontal: 24.w,
                     vertical: 14.h,

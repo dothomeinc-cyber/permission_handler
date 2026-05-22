@@ -44,6 +44,8 @@ class _PermissionWrapperState
   }
 
   Future<void> _checkPermissions() async {
+    if (!mounted) return; // Add mounted check
+
     setState(() {
       _isChecking = true;
     });
@@ -59,6 +61,9 @@ class _PermissionWrapperState
           title: widget.title,
           message: widget.message,
         );
+
+    // Check mounted before setState
+    if (!mounted) return;
 
     setState(() {
       _permissionsGranted = granted;

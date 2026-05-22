@@ -1,3 +1,7 @@
-## 0.0.1
 
-* TODO: Describe initial release.
+## 1.0.1
+- Permission Handler
+- 
+
+## 1.0.0
+- Permission Handler 

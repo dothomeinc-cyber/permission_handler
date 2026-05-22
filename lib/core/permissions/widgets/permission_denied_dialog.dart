@@ -31,7 +31,9 @@ class PermissionDeniedDialog extends StatelessWidget {
             Container(
               padding: EdgeInsets.all(16.w),
               decoration: BoxDecoration(
-                color: theme.colorScheme.error.withAlpha(1),
+                color: theme.colorScheme.error.withAlpha(
+                  30,
+                ), // Fixed
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -59,7 +61,7 @@ class PermissionDeniedDialog extends StatelessWidget {
                 fontSize: 14.sp,
                 fontWeight: FontWeight.w400,
                 color: theme.colorScheme.onSurface
-                    .withAlpha(200),
+                    .withAlpha(180), // Fixed
               ),
               textAlign: TextAlign.center,
             ),
@@ -70,10 +72,10 @@ class PermissionDeniedDialog extends StatelessWidget {
                 vertical: 6.h,
               ),
               decoration: BoxDecoration(
-                color:
-                    theme
-                        .colorScheme
-                        .surfaceContainerHighest,
+                color: theme
+                    .colorScheme
+                    .surfaceContainerHighest
+                    .withAlpha(130), // Fixed
                 borderRadius: BorderRadius.circular(20.r),
               ),
               child: Text(
@@ -82,7 +84,7 @@ class PermissionDeniedDialog extends StatelessWidget {
                   fontSize: 12.sp,
                   fontWeight: FontWeight.w600,
                   color: theme.colorScheme.onSurface
-                      .withAlpha(120),
+                      .withAlpha(160), // Fixed
                 ),
               ),
             ),
@@ -125,8 +127,8 @@ class PermissionDeniedDialog extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(
                     color: theme.colorScheme.primary
-                        .withAlpha(90),
-                  ),
+                        .withAlpha(80),
+                  ), // Fixed
                   padding: EdgeInsets.symmetric(
                     horizontal: 24.w,
                     vertical: 14.h,
