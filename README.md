@@ -4,55 +4,68 @@
 [![Flutter](https://img.shields.io/badge/Flutter-3.0+-blue.svg)](https://flutter.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Riverpod](https://img.shields.io/badge/State%20Management-Riverpod-25B6FF)](https://riverpod.dev)
-[![Style: Google Fonts](https://img.shields.io/badge/Fonts-Google%20Fonts-4285F4)](https://fonts.google.com)
+[![Google Fonts](https://img.shields.io/badge/Fonts-Google%20Fonts-4285F4)](https://fonts.google.com)
+[![Permission Handler](https://img.shields.io/badge/Permission%20Handler-11.3.0+-green)](https://pub.dev/packages/permission_handler)
+[![Code Size](https://img.shields.io/github/languages/code-size/yourusername/permission_handler_package)](https://github.com/yourusername/permission_handler_package)
 
 A professional Flutter package for handling permissions automatically with **Riverpod** state management, **retry logic**, **beautiful UI dialogs**, and **ScreenUtil** responsive design.
 
 ---
 
-## Features
-
-- **Automatic Permission Handling** — Request and manage permissions seamlessly
-- **Riverpod Integration** — Reactive state management with Riverpod
-- **Smart Retry Logic** — Configurable retry attempts with user prompts
-- **Permanent Denial Detection** — Handles permanently denied permissions gracefully
-- **System Settings Navigation** — One-click redirect to app settings
-- **Beautiful UI Dialogs** — Customizable, theme-aware permission dialogs
-- **Permission Wrapper** — Easy-to-use widget wrapper for protected screens
-- **Reactive Permission Builder** — Real-time permission status updates
-- **Responsive Design** — Built with ScreenUtil for responsive layouts
-- **Custom Theme Support** — Integrates with your existing theme
-- **Cross-Platform** — Fully supports both iOS and Android
-- **Zero Configuration** — Works out of the box with sensible defaults
-- **Type Safety** — Full Dart type safety with enum-based permissions
-
----
-
 ## Table of Contents
 
+- [Features](#features)
 - [Installation](#installation)
 - [Platform Configuration](#platform-configuration)
   - [Android Setup](#android-setup)
   - [iOS Setup](#ios-setup)
 - [Quick Start](#quick-start)
-- [Core Concepts](#core-concepts)
-  - [Permission Types](#permission-types)
+- [Permission Types & Groups](#permission-types--groups)
+  - [Complete Permission Types](#complete-permission-types)
+  - [Permission Groups](#permission-groups)
+  - [Platform Support Matrix](#platform-support-matrix)
 - [Usage Examples](#usage-examples)
 - [API Reference](#api-reference)
   - [PermissionActionNotifier Methods](#permissionactionnotifier-methods)
   - [PermissionManager Methods](#permissionmanager-methods)
+  - [PermissionResult Properties](#permissionresult-properties)
+  - [PermissionGroup Properties](#permissiongroup-properties)
   - [Widgets](#widgets)
   - [Providers](#providers)
 - [Customization](#customization)
+- [Cheatsheet](#cheatsheet)
 - [Troubleshooting](#troubleshooting)
 - [FAQ](#faq)
 - [License](#license)
 
 ---
 
+## Features
+
+| Feature | Description |
+|---|---|
+| **Automatic Permission Handling** | Request and manage permissions seamlessly |
+| **Riverpod Integration** | Reactive state management with Riverpod |
+| **Smart Retry Logic** | Configurable retry attempts with user prompts (max 2 retries default) |
+| **Permanent Denial Detection** | Handles permanently denied permissions with settings redirection |
+| **System Settings Navigation** | One-click redirect to app settings |
+| **Beautiful UI Dialogs** | Customizable, theme-aware permission dialogs |
+| **Permission Wrapper** | Easy-to-use widget wrapper for protected screens |
+| **Reactive Permission Builder** | Real-time permission status updates |
+| **Responsive Design** | Built with ScreenUtil for responsive layouts |
+| **Custom Theme Support** | Integrates with your existing theme |
+| **Cross-Platform** | Fully supports both iOS and Android |
+| **Zero Configuration** | Works out of the box with sensible defaults |
+| **Type Safety** | Full Dart type safety with enum-based permissions |
+| **Custom Explanation Dialogs** | Show custom messages before requesting permissions |
+| **Permission Groups** | Request multiple related permissions at once |
+| **Platform-Specific Support** | Automatically handles iOS/Android differences |
+
+---
+
 ## Installation
 
-Add this to your `pubspec.yaml`:
+Add to `pubspec.yaml`:
 
 ```yaml
 dependencies:
@@ -65,14 +78,14 @@ Then run:
 flutter pub get
 ```
 
-The package automatically includes these dependencies:
+**Required dependencies (auto-included):**
 
 ```yaml
-permission_handler: ^11.0.0
-riverpod: ^2.4.0
-flutter_riverpod: ^2.4.0
-flutter_screenutil: ^5.9.0
-google_fonts: ^6.1.0
+permission_handler: ^11.3.0     # Platform permission handling
+riverpod: ^2.4.0                # State management
+flutter_riverpod: ^2.4.0        # Riverpod for Flutter
+flutter_screenutil: ^5.9.0      # Responsive design
+google_fonts: ^6.1.0            # Google Fonts support
 ```
 
 ---
@@ -81,12 +94,12 @@ google_fonts: ^6.1.0
 
 ### Android Setup
 
-Add the required permissions to `android/app/src/main/AndroidManifest.xml`:
+Add to `android/app/src/main/AndroidManifest.xml`:
 
 ```xml
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Storage -->
+    <!-- Storage & Media -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
@@ -106,11 +119,9 @@ Add the required permissions to `android/app/src/main/AndroidManifest.xml`:
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.WRITE_CONTACTS" />
 
-    <!-- Phone -->
+    <!-- Phone & SMS -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.CALL_PHONE" />
-
-    <!-- SMS -->
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
@@ -131,6 +142,12 @@ Add the required permissions to `android/app/src/main/AndroidManifest.xml`:
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
+    <!-- App-specific -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <application
         android:requestLegacyExternalStorage="true"
         ...>
@@ -141,7 +158,7 @@ Add the required permissions to `android/app/src/main/AndroidManifest.xml`:
 
 ### iOS Setup
 
-Add permission descriptions to `ios/Runner/Info.plist`:
+Add to `ios/Runner/Info.plist`:
 
 ```xml
 <key>NSCameraUsageDescription</key>
@@ -173,6 +190,9 @@ Add permission descriptions to `ios/Runner/Info.plist`:
 
 <key>NSBluetoothAlwaysUsageDescription</key>
 <string>This app needs bluetooth access to connect to nearby devices</string>
+
+<key>NSUserTrackingUsageDescription</key>
+<string>This app needs tracking permission to provide personalized ads</string>
 
 <key>UIBackgroundModes</key>
 <array>
@@ -207,7 +227,7 @@ class MyApp extends StatelessWidget {
       builder: (context, child) {
         return MaterialApp(
           title: 'Permission Demo',
-          theme: yourTheme(),
+          theme: ThemeData(primarySwatch: Colors.blue),
           home: const SplashScreen(),
         );
       },
@@ -262,33 +282,75 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
 ---
 
-## Core Concepts
+## Permission Types & Groups
 
-### Permission Types
+### Complete Permission Types
 
-| Permission Type | Description | Platform |
+| Permission Type | Display Name | Platform | Description |
+|---|---|---|---|
+| `PermissionType.camera` | Camera | Both | Camera access for photos/videos |
+| `PermissionType.storage` | Storage | Both | Read/write external storage |
+| `PermissionType.photos` | Photos | iOS only | Access photo library |
+| `PermissionType.videos` | Videos | iOS only | Access video library |
+| `PermissionType.audio` | Audio | iOS only | Access audio/music files |
+| `PermissionType.location` | Location | Both | Fine and coarse location |
+| `PermissionType.locationAlways` | Location (Always) | Both | Always location access |
+| `PermissionType.locationWhenInUse` | Location (While Using) | Both | Location only when app is open |
+| `PermissionType.microphone` | Microphone | Both | Audio recording access |
+| `PermissionType.contacts` | Contacts | Both | Read/write contacts |
+| `PermissionType.notifications` | Notifications | Both | Push notifications |
+| `PermissionType.calendar` | Calendar | Both | Calendar events access |
+| `PermissionType.reminders` | Reminders | iOS only | Reminders access |
+| `PermissionType.bluetooth` | Bluetooth | Both | Bluetooth connectivity |
+| `PermissionType.sensors` | Sensors | Both | Body sensors / health data |
+| `PermissionType.sms` | SMS | Android only | Send/receive SMS |
+| `PermissionType.phone` | Phone | Android only | Make phone calls |
+| `PermissionType.appTrackingTransparency` | App Tracking | iOS only | App tracking permission |
+| `PermissionType.criticalAlerts` | Critical Alerts | iOS only | Critical alerts |
+| `PermissionType.scheduleExactAlarm` | Exact Alarms | Android only | Schedule exact alarms |
+| `PermissionType.ignoreBatteryOptimizations` | Battery Optimization | Android only | Ignore battery optimization |
+| `PermissionType.manageExternalStorage` | External Storage | Android only | Manage external storage |
+| `PermissionType.systemAlertWindow` | System Alerts | Android only | Draw over other apps |
+| `PermissionType.requestInstallPackages` | Install Packages | Android only | Install unknown apps |
+| `PermissionType.accessNotificationPolicy` | Notification Policy | Android only | Do Not Disturb access |
+
+### Permission Groups
+
+| Group | Display Name | Permissions Included |
 |---|---|---|
-| `PermissionType.camera` | Camera access for photos/videos | Both |
-| `PermissionType.storage` | Read/write external storage | Both |
-| `PermissionType.location` | Fine and coarse location | Both |
-| `PermissionType.locationAlways` | Always location access | Both |
-| `PermissionType.locationWhenInUse` | Location only when using the app | Both |
-| `PermissionType.microphone` | Microphone/audio recording | Both |
-| `PermissionType.contacts` | Read/write contacts | Both |
-| `PermissionType.notifications` | Push notifications | Both |
-| `PermissionType.photos` | Photo library access | iOS only |
-| `PermissionType.calendar` | Calendar events | Both |
-| `PermissionType.reminders` | Reminders access | iOS only |
-| `PermissionType.bluetooth` | Bluetooth connectivity | Both |
-| `PermissionType.sensors` | Body sensors / health data | Both |
-| `PermissionType.sms` | Send/receive SMS | Android only |
-| `PermissionType.phone` | Make phone calls | Android only |
+| `PermissionGroup.media` | Media & Files | `storage`, `photos`, `videos`, `audio` |
+| `PermissionGroup.communication` | Communication | `camera`, `microphone`, `contacts` |
+| `PermissionGroup.locationServices` | Location Services | `location`, `locationAlways`, `locationWhenInUse` |
+| `PermissionGroup.calendar` | Calendar | `calendar`, `reminders` |
+| `PermissionGroup.bluetooth` | Bluetooth | `bluetooth` |
+| `PermissionGroup.sensors` | Sensors | `sensors` |
+| `PermissionGroup.phone` | Phone | `phone`, `sms` |
+
+### Platform Support Matrix
+
+| Permission | iOS | Android |
+|---|---|---|
+| `camera` | ✅ | ✅ |
+| `storage` | ⚠️ Limited | ✅ |
+| `photos` | ✅ | ❌ |
+| `videos` | ✅ | ❌ |
+| `audio` | ✅ | ❌ |
+| `location` | ✅ | ✅ |
+| `microphone` | ✅ | ✅ |
+| `contacts` | ✅ | ✅ |
+| `notifications` | ✅ | ✅ |
+| `calendar` | ✅ | ✅ |
+| `reminders` | ✅ | ❌ |
+| `bluetooth` | ✅ | ✅ |
+| `sensors` | ✅ | ✅ |
+| `sms` | ❌ | ✅ |
+| `phone` | ❌ | ✅ |
 
 ---
 
 ## Usage Examples
 
-### 1. Simple Permission Request
+### 1. Request Single Permission
 
 ```dart
 class CameraButton extends ConsumerWidget {
@@ -307,10 +369,6 @@ class CameraButton extends ConsumerWidget {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Camera ready!')),
           );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Camera permission required')),
-          );
         }
       },
       child: const Text('Open Camera'),
@@ -319,7 +377,33 @@ class CameraButton extends ConsumerWidget {
 }
 ```
 
-### 2. Permission Wrapper Widget
+### 2. Request Permission Group
+
+```dart
+class CommunicationButton extends ConsumerWidget {
+  const CommunicationButton({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ElevatedButton(
+      onPressed: () async {
+        final actionNotifier = ref.read(permissionActionProvider.notifier);
+        final results = await actionNotifier.requestPermissionGroup(
+          PermissionGroup.communication,
+        );
+
+        final allGranted = results.values.every((r) => r.isGranted);
+        if (allGranted) {
+          print('All communication permissions granted!');
+        }
+      },
+      child: const Text('Request Communication Permissions'),
+    );
+  }
+}
+```
+
+### 3. Permission Wrapper Widget
 
 ```dart
 class ProtectedScreen extends StatelessWidget {
@@ -328,18 +412,11 @@ class ProtectedScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PermissionWrapper(
-      requiredPermissions: [
-        PermissionType.camera,
-        PermissionType.storage,
-      ],
+      requiredPermissions: [PermissionType.camera, PermissionType.storage],
       title: 'Permissions Required',
       message: 'This screen needs camera and storage access to function',
-      onPermissionsGranted: () {
-        print('All permissions granted!');
-      },
-      onPermissionsDenied: () {
-        print('Permissions denied');
-      },
+      onPermissionsGranted: () => print('Granted!'),
+      onPermissionsDenied: () => print('Denied!'),
       child: Scaffold(
         appBar: AppBar(title: const Text('Camera Screen')),
         body: const CameraWidget(),
@@ -349,7 +426,7 @@ class ProtectedScreen extends StatelessWidget {
 }
 ```
 
-### 3. Reactive Permission Builder
+### 4. Reactive Permission Builder
 
 ```dart
 class CameraFeature extends ConsumerWidget {
@@ -373,7 +450,6 @@ class CameraFeature extends ConsumerWidget {
               isGranted ? 'Camera Ready' : 'Camera Permission Required',
               style: Theme.of(context).textTheme.headlineSmall,
             ),
-            const SizedBox(height: 16),
             ElevatedButton(
               onPressed: isGranted ? () => _openCamera() : null,
               child: const Text('Take Photo'),
@@ -381,58 +457,10 @@ class CameraFeature extends ConsumerWidget {
           ],
         );
       },
-      deniedWidget: const CustomDeniedWidget(),
-      loadingWidget: const CircularProgressIndicator(),
     );
   }
 
-  void _openCamera() {
-    // Camera implementation
-  }
-}
-```
-
-### 4. Multiple Permissions Request
-
-```dart
-class MultiPermissionScreen extends ConsumerWidget {
-  const MultiPermissionScreen({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Multi Permission Demo')),
-      body: Center(
-        child: ElevatedButton(
-          onPressed: () async {
-            final actionNotifier = ref.read(permissionActionProvider.notifier);
-
-            final results = await actionNotifier.initializeRequiredPermissions(
-              context: context,
-              requiredPermissions: [
-                PermissionType.camera,
-                PermissionType.microphone,
-                PermissionType.location,
-              ],
-              title: 'Multiple Permissions Required',
-              message: 'This feature needs access to camera, microphone, and location',
-            );
-
-            if (results) {
-              _startFeature();
-            } else {
-              _showPartialAccessDialog();
-            }
-          },
-          child: const Text('Start Video Call'),
-        ),
-      ),
-    );
-  }
-
-  void _startFeature() { /* start video call feature */ }
-
-  void _showPartialAccessDialog() { /* show limited functionality dialog */ }
+  void _openCamera() {}
 }
 ```
 
@@ -444,38 +472,16 @@ class PermissionStatusWidget extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cameraStatus  = ref.watch(permissionStatusProvider(PermissionType.camera));
-    final storageStatus = ref.watch(permissionStatusProvider(PermissionType.storage));
+    final cameraStatus = ref.watch(permissionStatusProvider(PermissionType.camera));
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            _buildStatusTile('Camera', cameraStatus),
-            const Divider(),
-            _buildStatusTile('Storage', storageStatus),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusTile(String title, AsyncValue<bool> status) {
-    return status.when(
+    return cameraStatus.when(
       data: (isGranted) => ListTile(
         leading: Icon(
           isGranted ? Icons.check_circle : Icons.block,
           color: isGranted ? Colors.green : Colors.red,
         ),
-        title: Text(title),
-        trailing: Text(
-          isGranted ? 'Granted' : 'Denied',
-          style: TextStyle(
-            color: isGranted ? Colors.green : Colors.red,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        title: const Text('Camera'),
+        trailing: Text(isGranted ? 'Granted' : 'Denied'),
       ),
       loading: () => const ListTile(
         leading: CircularProgressIndicator(),
@@ -483,7 +489,7 @@ class PermissionStatusWidget extends ConsumerWidget {
       ),
       error: (_, __) => const ListTile(
         leading: Icon(Icons.error, color: Colors.red),
-        title: Text('Error checking permission'),
+        title: Text('Error'),
       ),
     );
   }
@@ -526,98 +532,158 @@ class _PermissionListenerState extends ConsumerState<PermissionListener> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Container(); // Your widget tree
-  }
+  Widget build(BuildContext context) => Container();
 }
 ```
 
-### 7. Custom Dialog Styling
+### 7. Custom Explanation Dialog
 
 ```dart
-class CustomPermissionDialog extends StatelessWidget {
-  const CustomPermissionDialog({super.key});
+class CustomPermissionExample extends ConsumerStatefulWidget {
+  const CustomPermissionExample({super.key});
+
+  @override
+  ConsumerState<CustomPermissionExample> createState() =>
+      _CustomPermissionExampleState();
+}
+
+class _CustomPermissionExampleState
+    extends ConsumerState<CustomPermissionExample> {
+  @override
+  void initState() {
+    super.initState();
+    _setupPermissionCallbacks();
+  }
+
+  void _setupPermissionCallbacks() {
+    final actionNotifier = ref.read(permissionActionProvider.notifier);
+
+    actionNotifier.setPermissionExplanationCallback((permission) async {
+      return await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => AlertDialog(
+              title: Text('Why do we need ${permission.displayName}?'),
+              content: Text(permission.description),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Not Now'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Allow'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return PermissionWrapper(
-      requiredPermissions: [PermissionType.camera],
-      title: 'Custom Title',
-      message: 'Custom message with your branding',
-      // Dialogs automatically adopt your app's MaterialApp theme
-      child: const YourWidget(),
-    );
-  }
-}
-```
-
-### 8. Background Location Permission
-
-```dart
-class LocationService extends ConsumerWidget {
-  const LocationService({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Column(
-      children: [
-        _buildLocationButton(
-          context, ref,
-          PermissionType.locationWhenInUse,
-          'Enable While Using',
-          'Get location only when app is open',
-        ),
-        const SizedBox(height: 16),
-        _buildLocationButton(
-          context, ref,
-          PermissionType.locationAlways,
-          'Enable Always',
-          'Get location even when app is in the background',
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLocationButton(
-    BuildContext context,
-    WidgetRef ref,
-    PermissionType permission,
-    String title,
-    String subtitle,
-  ) {
-    final status = ref.watch(permissionStatusProvider(permission));
-
-    return Card(
-      child: ListTile(
-        leading: const Icon(Icons.location_on),
-        title: Text(title),
-        subtitle: Text(subtitle),
-        trailing: status.when(
-          data: (isGranted) => ElevatedButton(
-            onPressed: isGranted ? null : () => _requestLocation(ref, permission),
-            child: Text(isGranted ? 'Granted' : 'Request'),
-          ),
-          loading: () => const SizedBox(
-            width: 20, height: 20,
-            child: CircularProgressIndicator(),
-          ),
-          error: (_, __) => const Text('Error'),
+    return Scaffold(
+      appBar: AppBar(title: const Text('Custom Permission')),
+      body: Center(
+        child: ElevatedButton(
+          onPressed: () async {
+            final actionNotifier = ref.read(permissionActionProvider.notifier);
+            await actionNotifier.requestSinglePermission(PermissionType.camera);
+          },
+          child: const Text('Request Camera with Explanation'),
         ),
       ),
     );
   }
+}
+```
 
-  Future<void> _requestLocation(WidgetRef ref, PermissionType permission) async {
-    final actionNotifier = ref.read(permissionActionProvider.notifier);
-    final result = await actionNotifier.requestSinglePermission(permission);
-    if (result.isGranted) {
-      // Start location tracking
-    }
+### 8. Multiple Permissions with Groups
+
+```dart
+class MultiplePermissionsScreen extends ConsumerWidget {
+  const MultiplePermissionsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Multiple Permissions')),
+      body: Center(
+        child: ElevatedButton(
+          onPressed: () async {
+            final actionNotifier = ref.read(permissionActionProvider.notifier);
+
+            final granted = await actionNotifier.initializeRequiredPermissions(
+              context: context,
+              requiredPermissions: [
+                PermissionType.camera,
+                PermissionType.microphone,
+              ],
+              requiredGroups: [
+                PermissionGroup.locationServices,
+                PermissionGroup.media,
+              ],
+              title: 'Permissions Required',
+              message: 'This app needs various permissions to function properly.',
+            );
+
+            if (granted && context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('All permissions granted!')),
+              );
+            }
+          },
+          child: const Text('Request All Permissions'),
+        ),
+      ),
+    );
   }
 }
 ```
 
-### 9. Conditional UI Based on Permissions
+### 9. Check Group Permission Status
+
+```dart
+class GroupStatusWidget extends ConsumerWidget {
+  const GroupStatusWidget({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mediaGroupStatus =
+        ref.watch(permissionGroupStatusProvider(PermissionGroup.media));
+
+    return mediaGroupStatus.when(
+      data: (allGranted) => Card(
+        child: ListTile(
+          leading: Icon(
+            allGranted ? Icons.check_circle : Icons.warning,
+            color: allGranted ? Colors.green : Colors.orange,
+          ),
+          title: const Text('Media Permissions'),
+          subtitle: Text(allGranted ? 'All granted' : 'Some permissions missing'),
+          trailing: allGranted
+              ? const Icon(Icons.check, color: Colors.green)
+              : ElevatedButton(
+                  onPressed: () => _requestMediaPermissions(ref),
+                  child: const Text('Grant All'),
+                ),
+        ),
+      ),
+      loading: () => const Card(child: ListTile(title: Text('Loading...'))),
+      error: (_, __) => const Card(child: ListTile(title: Text('Error'))),
+    );
+  }
+
+  Future<void> _requestMediaPermissions(WidgetRef ref) async {
+    final actionNotifier = ref.read(permissionActionProvider.notifier);
+    await actionNotifier.requestPermissionGroup(PermissionGroup.media);
+    ref.invalidate(permissionGroupStatusProvider(PermissionGroup.media));
+  }
+}
+```
+
+### 10. Conditional UI Based on Permissions
 
 ```dart
 class ConditionalUI extends ConsumerWidget {
@@ -625,106 +691,22 @@ class ConditionalUI extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cameraGranted     = ref.watch(permissionStatusProvider(PermissionType.camera));
-    final microphoneGranted = ref.watch(permissionStatusProvider(PermissionType.microphone));
+    final cameraGranted =
+        ref.watch(permissionStatusProvider(PermissionType.camera));
+    final microphoneGranted =
+        ref.watch(permissionStatusProvider(PermissionType.microphone));
 
     return Column(
       children: [
-        cameraGranted.when(
-          data: (hasCamera) => hasCamera
-              ? const CameraWidget()
-              : const PermissionRequestCard(permission: PermissionType.camera),
-          loading: () => const CircularProgressIndicator(),
-          error: (_, __) => const Text('Error checking camera'),
-        ),
-        microphoneGranted.when(
-          data: (hasMic) => hasMic
-              ? const MicrophoneWidget()
-              : const PermissionRequestCard(permission: PermissionType.microphone),
-          loading: () => const CircularProgressIndicator(),
-          error: (_, __) => const Text('Error checking microphone'),
-        ),
+        if (cameraGranted.value == true)
+          const CameraWidget()
+        else
+          const PermissionRequestCard(permission: PermissionType.camera),
+        if (microphoneGranted.value == true)
+          const MicrophoneWidget()
+        else
+          const PermissionRequestCard(permission: PermissionType.microphone),
       ],
-    );
-  }
-}
-
-class PermissionRequestCard extends StatelessWidget {
-  final PermissionType permission;
-
-  const PermissionRequestCard({super.key, required this.permission});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Text('${permission.displayName} Permission Required'),
-            const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: () async {
-                final container = ProviderScope.containerOf(context);
-                final actionNotifier = container.read(permissionActionProvider.notifier);
-                await actionNotifier.requestSinglePermission(permission);
-              },
-              child: const Text('Grant Permission'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-```
-
-### 10. Permission Gate with Redirection
-
-```dart
-class PermissionGate extends ConsumerWidget {
-  const PermissionGate({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return PermissionWrapper(
-      requiredPermissions: [
-        PermissionType.camera,
-        PermissionType.storage,
-        PermissionType.location,
-      ],
-      title: 'Setup Required',
-      message: 'Please grant these permissions to continue using the app',
-      onPermissionsGranted: () {
-        Navigator.of(context).pushReplacementNamed('/home');
-      },
-      onPermissionsDenied: () {
-        _showExitDialog(context);
-      },
-      child: const SizedBox(),
-    );
-  }
-
-  void _showExitDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('Permissions Required'),
-        content: const Text(
-          'This app cannot function without the required permissions.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Try Again'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Exit'),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -736,26 +718,58 @@ class PermissionGate extends ConsumerWidget {
 
 ### PermissionActionNotifier Methods
 
-| Method | Description | Returns |
-|---|---|---|
-| `initializeRequiredPermissions()` | Initialize and request all required permissions | `Future<bool>` |
-| `requestSinglePermission()` | Request a single permission | `Future<PermissionResult>` |
-| `reset()` | Reset permission state | `void` |
+| Method | Parameters | Returns | Description |
+|---|---|---|---|
+| `initializeRequiredPermissions()` | `context`, `requiredPermissions`, `requiredGroups?`, `showInitialScreen?`, `title?`, `message?` | `Future<bool>` | Initialize and request all required permissions |
+| `requestSinglePermission()` | `permission` | `Future<PermissionResult>` | Request a single permission |
+| `requestPermissionGroup()` | `group`, `showExplanation?` | `Future<Map<PermissionType, PermissionResult>>` | Request all permissions in a group |
+| `setPermissionExplanationCallback()` | `callback` | `void` | Set custom explanation callback for permissions |
+| `setGroupExplanationCallback()` | `callback` | `void` | Set custom explanation callback for groups |
+| `reset()` | — | `void` | Reset permission state |
 
 ### PermissionManager Methods
 
-| Method | Description | Returns |
+| Method | Parameters | Returns | Description |
+|---|---|---|---|
+| `checkPermissionsStatus()` | `List<PermissionType>` | `Future<Map<PermissionType, PermissionResult>>` | Check status of multiple permissions |
+| `requestPermission()` | `PermissionType` | `Future<PermissionResult>` | Request a single permission |
+| `requestPermissions()` | `List<PermissionType>` | `Future<Map<PermissionType, PermissionResult>>` | Request multiple permissions |
+| `requestPermissionWithExplanation()` | `PermissionType`, `showExplanation?` | `Future<PermissionResult>` | Request with optional explanation dialog |
+| `requestPermissionGroup()` | `PermissionGroup`, `showExplanation?` | `Future<Map<PermissionType, PermissionResult>>` | Request a permission group |
+| `openAppSettings()` | — | `Future<void>` | Open app settings page |
+| `isPermissionGranted()` | `PermissionType` | `Future<bool>` | Check if a permission is granted |
+| `isPermissionPermanentlyDenied()` | `PermissionType` | `Future<bool>` | Check if permanently denied |
+| `checkGroupPermissionsStatus()` | `List<PermissionGroup>` | `Future<Map<PermissionGroup, bool>>` | Check group permissions status |
+| `isGroupSupported()` | `PermissionGroup` | `bool` | Check if group is supported on platform |
+| `getPlatformNote()` | `PermissionType` | `String` | Get platform-specific note |
+| `clearCache()` | `PermissionType` | `void` | Clear cache for a specific permission |
+| `clearAllCache()` | — | `void` | Clear all cached permission results |
+| `dispose()` | — | `void` | Dispose the manager |
+
+### PermissionResult Properties
+
+| Property | Type | Description |
 |---|---|---|
-| `checkPermissionsStatus()` | Check current status of permissions | `Future<Map<PermissionType, PermissionResult>>` |
-| `requestPermission()` | Request a single permission | `Future<PermissionResult>` |
-| `requestPermissions()` | Request multiple permissions | `Future<Map<PermissionType, PermissionResult>>` |
-| `openAppSettings()` | Open the app settings page | `Future<void>` |
-| `isPermissionGranted()` | Check if a permission is granted | `Future<bool>` |
-| `isPermissionPermanentlyDenied()` | Check if a permission is permanently denied | `Future<bool>` |
+| `permission` | `PermissionType` | The permission type |
+| `isGranted` | `bool` | Whether permission is granted |
+| `isPermanentlyDenied` | `bool` | Whether permanently denied |
+| `status` | `PermissionStatus` | Raw permission status |
+| `timestamp` | `DateTime` | When the result was created |
+| `isDenied` | `bool` | Whether permission is denied |
+| `isLimited` | `bool` | Whether permission is limited (iOS) |
+| `isRestricted` | `bool` | Whether permission is restricted (iOS) |
+
+### PermissionGroup Properties
+
+| Property | Type | Description |
+|---|---|---|
+| `displayName` | `String` | User-friendly group name |
+| `icon` | `String` | Emoji icon for the group |
+| `permissions` | `List<PermissionType>` | All permissions in the group |
 
 ### Widgets
 
-| Widget | Description |
+| Widget | Purpose |
 |---|---|
 | `PermissionWrapper` | Wraps widgets that require permissions before rendering |
 | `PermissionBuilder` | Rebuilds UI reactively based on permission status |
@@ -765,13 +779,14 @@ class PermissionGate extends ConsumerWidget {
 
 ### Providers
 
-| Provider | Description |
-|---|---|
-| `permissionManagerProvider` | Provides a `PermissionManager` instance |
-| `permissionStateProvider` | Provides the current permission state |
-| `permissionActionProvider` | Provides permission actions (notifier) |
-| `permissionStatusProvider` | Watches a single permission status |
-| `permissionsStatusProvider` | Watches multiple permission statuses |
+| Provider | Type | Description |
+|---|---|---|
+| `permissionManagerProvider` | `Provider<PermissionManager>` | Provides `PermissionManager` instance |
+| `permissionStateProvider` | `ChangeNotifierProvider<PermissionNotifier>` | Provides permission state |
+| `permissionActionProvider` | `StateNotifierProvider<PermissionActionNotifier, AsyncValue<void>>` | Provides permission actions |
+| `permissionStatusProvider` | `FutureProvider.family<bool, PermissionType>` | Watches a single permission status |
+| `permissionsStatusProvider` | `FutureProvider.family<Map<PermissionType, bool>, List<PermissionType>>` | Watches multiple permissions |
+| `permissionGroupStatusProvider` | `FutureProvider.family<bool, PermissionGroup>` | Watches group permission status |
 
 ---
 
@@ -779,17 +794,21 @@ class PermissionGate extends ConsumerWidget {
 
 ### Custom Theme Integration
 
-The package automatically adopts your app's `ThemeData`:
-
 ```dart
 ThemeData myTheme() {
   return ThemeData(
     colorScheme: const ColorScheme.light(
       primary: Colors.blue,
       error: Colors.red,
+      surface: Colors.white,
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
     ),
   );
 }
@@ -803,40 +822,23 @@ MaterialApp(
 );
 ```
 
-### Custom Dialogs
-
-```dart
-class CustomPermissionDialog extends StatelessWidget {
-  const CustomPermissionDialog({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Custom Dialog'),
-      content: const Text('This is your custom permission dialog'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: const Text('Allow'),
-        ),
-      ],
-    );
-  }
-}
-```
-
 ### Custom Loading Widget
 
 ```dart
 PermissionWrapper(
   requiredPermissions: [PermissionType.camera],
-  loadingWidget: const CustomLoadingAnimation(),
+  loadingWidget: const Center(
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        CircularProgressIndicator(),
+        SizedBox(height: 16),
+        Text('Loading permissions...'),
+      ],
+    ),
+  ),
   child: const YourWidget(),
-)
+);
 ```
 
 ### Custom Denied Widget
@@ -844,9 +846,145 @@ PermissionWrapper(
 ```dart
 PermissionWrapper(
   requiredPermissions: [PermissionType.camera],
-  permissionDeniedWidget: const CustomPermissionDeniedScreen(),
+  permissionDeniedWidget: Scaffold(
+    body: Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.block, size: 80, color: Colors.red),
+          const SizedBox(height: 16),
+          const Text('Camera Permission Required'),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () {},
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    ),
+  ),
   child: const YourWidget(),
+);
+```
+
+---
+
+## Cheatsheet
+
+**One-line permission requests:**
+
+```dart
+// Single permission
+final result = await ref.read(permissionActionProvider.notifier)
+    .requestSinglePermission(PermissionType.camera);
+
+// Permission group
+final results = await ref.read(permissionActionProvider.notifier)
+    .requestPermissionGroup(PermissionGroup.communication);
+
+// Initialize multiple permissions
+final granted = await ref.read(permissionActionProvider.notifier)
+    .initializeRequiredPermissions(
+      context: context,
+      requiredPermissions: [PermissionType.camera, PermissionType.microphone],
+    );
+```
+
+**Permission status checks:**
+
+```dart
+// Watch single permission reactively
+final isGranted = ref.watch(permissionStatusProvider(PermissionType.camera)).value ?? false;
+
+// Watch group permission reactively
+final groupGranted = ref.watch(permissionGroupStatusProvider(PermissionGroup.media)).value ?? false;
+
+// Manual async check
+final manager = ref.read(permissionManagerProvider);
+final isGranted = await manager.isPermissionGranted(PermissionType.camera);
+```
+
+**Quick widget wrappers:**
+
+```dart
+// Wrapper for protected screens
+PermissionWrapper(
+  requiredPermissions: [PermissionType.camera],
+  child: YourWidget(),
 )
+
+// Reactive builder
+PermissionBuilder(
+  permission: PermissionType.camera,
+  builder: (context, isGranted) => YourWidget(isGranted),
+)
+```
+
+**Platform-specific handling:**
+
+```dart
+import 'dart:io';
+
+if (Platform.isIOS) {
+  await actionNotifier.requestSinglePermission(PermissionType.photos);
+} else {
+  await actionNotifier.requestSinglePermission(PermissionType.storage);
+}
+```
+
+**Custom explanation callbacks:**
+
+```dart
+actionNotifier.setPermissionExplanationCallback((permission) async {
+  return await showMyCustomDialog();
+});
+
+actionNotifier.setGroupExplanationCallback((group) async {
+  return await showMyGroupDialog();
+});
+```
+
+**Quick check and request:**
+
+```dart
+final manager = ref.read(permissionManagerProvider);
+final hasPermission = await manager.isPermissionGranted(PermissionType.camera);
+
+if (!hasPermission) {
+  final result = await manager.requestPermission(PermissionType.camera);
+  if (result.isGranted) {
+    // Proceed
+  }
+}
+```
+
+**Listen to permission changes:**
+
+```dart
+ref.listen(permissionStateProvider, (previous, next) {
+  if (next.isPermissionGranted(PermissionType.camera)) {
+    print('Camera permission granted!');
+  }
+});
+```
+
+**Common permission combinations:**
+
+```dart
+// Camera app
+requiredPermissions: [PermissionType.camera, PermissionType.storage]
+
+// Voice recorder
+requiredPermissions: [PermissionType.microphone, PermissionType.storage]
+
+// Navigation app
+requiredGroups: [PermissionGroup.locationServices]
+
+// Social media
+requiredGroups: [PermissionGroup.communication, PermissionGroup.media]
+
+// Health app
+requiredPermissions: [PermissionType.sensors]
 ```
 
 ---
@@ -855,11 +993,11 @@ PermissionWrapper(
 
 **Permission dialog not showing**
 
-Ensure the correct permissions are declared in your platform-specific files. On Android, check `AndroidManifest.xml`; on iOS, check `Info.plist`.
+Ensure permissions are declared in your platform-specific files — `AndroidManifest.xml` for Android, `Info.plist` for iOS.
 
 **Permanently denied not detected**
 
-Clear the app's data or reinstall it to reset permission state.
+Clear app data or reinstall to reset permission state.
 
 ```bash
 # Android
@@ -895,6 +1033,18 @@ class MyApp extends StatelessWidget {
 }
 ```
 
+**Memory leaks**
+
+Dispose `PermissionManager` when done:
+
+```dart
+@override
+void dispose() {
+  ref.read(permissionManagerProvider).dispose();
+  super.dispose();
+}
+```
+
 ---
 
 ## FAQ
@@ -902,22 +1052,20 @@ class MyApp extends StatelessWidget {
 **Q: How do I request permissions on app startup?**
 
 ```dart
-class _MyAppState extends ConsumerState<MyApp> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _requestPermissions();
-    });
-  }
+@override
+void initState() {
+  super.initState();
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    _requestPermissions();
+  });
+}
 
-  Future<void> _requestPermissions() async {
-    final notifier = ref.read(permissionActionProvider.notifier);
-    await notifier.initializeRequiredPermissions(
-      context: context,
-      requiredPermissions: [PermissionType.camera, PermissionType.storage],
-    );
-  }
+Future<void> _requestPermissions() async {
+  final notifier = ref.read(permissionActionProvider.notifier);
+  await notifier.initializeRequiredPermissions(
+    context: context,
+    requiredPermissions: [PermissionType.camera, PermissionType.storage],
+  );
 }
 ```
 
@@ -926,13 +1074,12 @@ class _MyAppState extends ConsumerState<MyApp> {
 ```dart
 final cameraStatus  = ref.watch(permissionStatusProvider(PermissionType.camera));
 final storageStatus = ref.watch(permissionStatusProvider(PermissionType.storage));
-
 // Each provider updates independently
 ```
 
 **Q: Can I use this without Riverpod?**
 
-Yes. You can use `PermissionManager` directly, though Riverpod is recommended for reactive UI:
+Yes, use `PermissionManager` directly:
 
 ```dart
 final manager = PermissionManager();
@@ -950,6 +1097,44 @@ await Permission.camera.request();
 
 No. This package targets mobile platforms (iOS and Android) only.
 
+**Q: How do I reset permission state?**
+
+```dart
+ref.read(permissionActionProvider.notifier).reset();
+```
+
+**Q: How do I open app settings manually?**
+
+```dart
+final manager = ref.read(permissionManagerProvider);
+await manager.openAppSettings();
+```
+
+**Q: How do I check if a permission group is supported on the current platform?**
+
+```dart
+final manager = ref.read(permissionManagerProvider);
+final isSupported = manager.isGroupSupported(PermissionGroup.media);
+```
+
+**Q: How do I clear the permission cache?**
+
+```dart
+final manager = ref.read(permissionManagerProvider);
+manager.clearCache(PermissionType.camera); // Clear specific permission
+manager.clearAllCache();                   // Clear all
+```
+
+**Q: How do I get platform-specific notes for a permission?**
+
+```dart
+final manager = ref.read(permissionManagerProvider);
+final note = manager.getPlatformNote(PermissionType.photos);
+if (note.isNotEmpty) {
+  print(note); // e.g. "iOS requires separate permission for photos"
+}
+```
+
 ---
 
 ## License
@@ -958,9 +1143,16 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 ---
 
+## Contributing
+
+Pull requests and issues are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+---
+
 ## Support
 
 - Issues: [GitHub Issues](#)
+- Discussions: [GitHub Discussions](#)
 - Documentation: [Wiki](#)
 
 ---

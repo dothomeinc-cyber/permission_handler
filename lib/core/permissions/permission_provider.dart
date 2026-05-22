@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
-// Removed legacy import - using modern Riverpod
 import 'permission_manager.dart';
 import 'permission_state.dart';
 import 'models/permission_type.dart';
@@ -27,6 +26,17 @@ final permissionStatusProvider =
     ) async {
       final manager = ref.read(permissionManagerProvider);
       return await manager.isPermissionGranted(permission);
+    });
+
+final permissionGroupStatusProvider =
+    FutureProvider.family<bool, PermissionGroup>((
+      ref,
+      group,
+    ) async {
+      final manager = ref.read(permissionManagerProvider);
+      final results = await manager
+          .checkGroupPermissionsStatus([group]);
+      return results[group] ?? false;
     });
 
 final permissionsStatusProvider = FutureProvider.family<
@@ -56,9 +66,37 @@ class PermissionActionNotifier
   final PermissionManager _manager;
   final PermissionNotifier _stateNotifier;
 
+  /// Set custom explanation callback
+  void setPermissionExplanationCallback(
+    PermissionExplanationCallback callback,
+  ) {
+    _manager.setOnBeforePermissionRequest(callback);
+  }
+
+  /// Set custom group explanation callback
+  void setGroupExplanationCallback(
+    PermissionGroupExplanationCallback callback,
+  ) {
+    _manager.setOnBeforeGroupRequest(callback);
+  }
+
+  /// Request permission group with custom explanation
+  Future<Map<PermissionType, PermissionResult>>
+  requestPermissionGroup(
+    PermissionGroup group, {
+    bool showExplanation = true,
+  }) async {
+    return await _manager.requestPermissionGroup(
+      group,
+      showExplanation: showExplanation,
+    );
+  }
+
+  /// Initialize required permissions with group support
   Future<bool> initializeRequiredPermissions({
     required BuildContext context,
     required List<PermissionType> requiredPermissions,
+    List<PermissionGroup>? requiredGroups,
     bool showInitialScreen = true,
     String? title,
     String? message,
@@ -68,8 +106,18 @@ class PermissionActionNotifier
     _stateNotifier.setLoading(true);
 
     try {
-      final results = await _manager.checkPermissionsStatus(
+      // Expand groups to individual permissions if provided
+      List<PermissionType> allPermissions = List.from(
         requiredPermissions,
+      );
+      if (requiredGroups != null) {
+        for (var group in requiredGroups) {
+          allPermissions.addAll(group.permissions);
+        }
+      }
+
+      final results = await _manager.checkPermissionsStatus(
+        allPermissions,
       );
       _stateNotifier.updatePermissions(results);
 
@@ -91,7 +139,7 @@ class PermissionActionNotifier
             await _showPermanentDenialDialog(
               context: context,
               permissions:
-                  requiredPermissions
+                  allPermissions
                       .where(
                         (p) =>
                             results[p]
@@ -110,7 +158,7 @@ class PermissionActionNotifier
           );
 
           final newResults = await _manager
-              .checkPermissionsStatus(requiredPermissions);
+              .checkPermissionsStatus(allPermissions);
           _stateNotifier.updatePermissions(newResults);
 
           final allGrantedNow = newResults.values.every(
@@ -128,7 +176,7 @@ class PermissionActionNotifier
         final shouldRequest =
             await _showInitialPermissionScreen(
               context: context,
-              permissions: requiredPermissions,
+              permissions: allPermissions,
               title: title,
               message: message,
             );
@@ -137,7 +185,7 @@ class PermissionActionNotifier
           final requestResults =
               await _requestPermissionsWithRetry(
                 context: context,
-                permissions: requiredPermissions,
+                permissions: allPermissions,
               );
 
           _stateNotifier.updatePermissions(requestResults);
@@ -168,7 +216,6 @@ class PermissionActionNotifier
     int retryCount = 0;
 
     while (retryCount < maxRetries) {
-      // Use batch request for better performance
       final results = await _manager.requestPermissions(
         permissions,
       );
