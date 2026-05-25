@@ -1,6 +1,6 @@
 name: permission_handler_package
 description: A professional Flutter package for handling permissions automatically with Riverpod state management, retry logic, and beautiful UI dialogs.
-version: 1.0.2
+version: 1.0.4
 homepage: https://github.com/yourusername/permission_handler_package
 repository: https://github.com/yourusername/permission_handler_package
 issue_tracker: https://github.com/yourusername/permission_handler_package/issues

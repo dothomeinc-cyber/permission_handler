@@ -1,13 +1,30 @@
-## 1.0.3
-- All edge cases added 
+# Changelog
 
-## 1.0.2
-- Permission Handler
-- updated with more features 
+All notable changes to the `permission_handler_package` package will be documented in this file.
 
-## 1.0.1
-- Permission Handler
-- 
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 1.0.0
-- Permission Handler 
+---
+
+## [1.0.4] - 2024-01-15
+
+### 🎯 Major Improvements
+
+#### 🧹 Code Cleanup & Simplification
+- **Removed redundant screens** - `PermissionInitialScreen`, `PermissionDeniedScreen`, `PermissionPermanentScreen`, `PermissionSettingsScreen` removed
+- **Consolidated UI** - Now only dialogs handle all permission flows (no duplication)
+- **Simplified architecture** - Cleaner, more maintainable codebase
+
+#### 🐛 Bug Fixes
+- Fixed deprecated `withOpacity()` warnings → replaced with `withAlpha()`
+- Fixed incorrect import paths across all files
+- Fixed missing `permission_provider.dart` import in settings widget
+- Fixed all circular dependency issues
+
+#### 🔧 Dependency Updates
+- Updated `permission_handler` to latest version
+- Updated `flutter_riverpod` compatibility
+- Updated `flutter_screenutil` integration
+
+#### 📁 Structure Changes
