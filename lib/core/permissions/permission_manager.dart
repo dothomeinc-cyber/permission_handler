@@ -7,6 +7,9 @@ import 'package:permission_handler/permission_handler.dart'
     as ph;
 import 'models/permission_type.dart';
 import 'models/permission_result.dart';
+import 'widgets/permission_initial_dialog.dart';
+import 'widgets/permission_denied_dialog.dart';
+import 'widgets/permission_permanent_dialog.dart';
 
 typedef PermissionExplanationCallback =
     Future<bool> Function(PermissionType permission);
@@ -210,49 +213,68 @@ class PermissionManager {
       );
     }
 
-    // Wait for initialization if needed
     if (!_isInitialized) {
       await Future.delayed(Duration.zero);
     }
 
-    if (await isPermissionGranted(permission)) {
-      return PermissionResult(
+    final ctx = context ?? getCurrentContext();
+
+    final currentStatus =
+        await permission.permission.status;
+
+    if (currentStatus.isGranted) {
+      final result = PermissionResult(
         permission: permission,
         isGranted: true,
         isPermanentlyDenied: false,
-        status: ph.PermissionStatus.granted,
+        status: currentStatus,
       );
+
+      _permissionCache[permission] = _CachedPermission(
+        result: result,
+        timestamp: DateTime.now(),
+      );
+
+      return result;
     }
 
-    final ctx = context ?? getCurrentContext();
-    if (showExplanation &&
-        _defaultExplanations.containsKey(permission) &&
-        ctx != null) {
-      if (!ctx.mounted) {
-        // Context is not mounted, skip explanation
-      } else {
-        final shouldContinue =
-            await _showAutoExplanationDialog(
-              ctx,
-              permission,
-            );
-        if (!shouldContinue) {
-          return PermissionResult(
-            permission: permission,
-            isGranted: false,
-            isPermanentlyDenied: false,
-            status: ph.PermissionStatus.denied,
-          );
-        }
+    if (currentStatus.isPermanentlyDenied) {
+      final result = PermissionResult(
+        permission: permission,
+        isGranted: false,
+        isPermanentlyDenied: true,
+        status: currentStatus,
+      );
+
+      if (ctx != null && ctx.mounted) {
+        await _showPermanentDenialDialog(ctx, permission);
+      }
+
+      return result;
+    }
+
+    if (showExplanation && ctx != null && ctx.mounted) {
+      final shouldContinue =
+          await _showAutoExplanationDialog(ctx, permission);
+
+      if (!shouldContinue) {
+        return PermissionResult(
+          permission: permission,
+          isGranted: false,
+          isPermanentlyDenied: false,
+          status: ph.PermissionStatus.denied,
+        );
       }
     }
 
-    final status = await permission.permission.request();
-    final result = PermissionResult(
+    final nativeStatus =
+        await permission.permission.request();
+
+    var result = PermissionResult(
       permission: permission,
-      isGranted: status.isGranted,
-      isPermanentlyDenied: status.isPermanentlyDenied,
-      status: status,
+      isGranted: nativeStatus.isGranted,
+      isPermanentlyDenied: nativeStatus.isPermanentlyDenied,
+      status: nativeStatus,
     );
 
     _permissionCache[permission] = _CachedPermission(
@@ -267,10 +289,57 @@ class PermissionManager {
       ),
     );
 
-    if (result.isPermanentlyDenied &&
-        ctx != null &&
-        ctx.mounted) {
-      await _showPermanentDenialDialog(ctx, permission);
+    if (!result.isGranted && ctx != null && ctx.mounted) {
+      if (result.isPermanentlyDenied) {
+        await _showPermanentDenialDialog(ctx, permission);
+      } else {
+        int retryCount = 0;
+
+        while (retryCount < 2) {
+          final retry = await _showDeniedDialog(ctx, [
+            permission,
+          ], retryCount);
+
+          if (!retry) break;
+
+          retryCount++;
+
+          final retryStatus =
+              await permission.permission.request();
+
+          result = PermissionResult(
+            permission: permission,
+            isGranted: retryStatus.isGranted,
+            isPermanentlyDenied:
+                retryStatus.isPermanentlyDenied,
+            status: retryStatus,
+          );
+
+          _permissionCache[permission] = _CachedPermission(
+            result: result,
+            timestamp: DateTime.now(),
+          );
+
+          _onPermissionChanged.add(
+            PermissionChangeEvent(
+              permission: permission,
+              result: result,
+            ),
+          );
+
+          if (result.isGranted) {
+            break; // Success! Exit retry loop
+          }
+
+          if (result.isPermanentlyDenied) {
+            await _showPermanentDenialDialog(
+              ctx,
+              permission,
+            );
+            break; // Exit loop, permanently denied
+          }
+        }
+      }
     }
 
     return result;
@@ -280,51 +349,37 @@ class PermissionManager {
     BuildContext context,
     PermissionType permission,
   ) async {
-    if (!context.mounted) return true;
+    if (!context.mounted) return false;
 
     return await showDialog<bool>(
           context: context,
           barrierDismissible: false,
           builder:
-              (dialogContext) => AlertDialog(
-                title: Row(
-                  children: [
-                    Text(
-                      permission.icon,
-                      style: const TextStyle(fontSize: 32),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        '${permission.displayName} Permission',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                content: Text(
-                  _defaultExplanations[permission]!,
-                ),
-                actions: [
-                  TextButton(
-                    onPressed:
-                        () => Navigator.pop(
-                          dialogContext,
-                          false,
-                        ),
-                    child: const Text('Not Now'),
-                  ),
-                  ElevatedButton(
-                    onPressed:
-                        () => Navigator.pop(
-                          dialogContext,
-                          true,
-                        ),
-                    child: const Text('Allow'),
-                  ),
-                ],
+              (_) => PermissionInitialDialog(
+                permissions: [permission],
+                title:
+                    '${permission.displayName} Permission Required',
+                message: permission.description,
+              ),
+        ) ??
+        false;
+  }
+
+  Future<bool> _showDeniedDialog(
+    BuildContext context,
+    List<PermissionType> permissions,
+    int retryCount,
+  ) async {
+    if (!context.mounted) return false;
+
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder:
+              (_) => PermissionDeniedDialog(
+                permissions: permissions,
+                retryCount: retryCount,
+                maxRetries: 2,
               ),
         ) ??
         false;
@@ -341,32 +396,12 @@ class PermissionManager {
           context: context,
           barrierDismissible: false,
           builder:
-              (dialogContext) => AlertDialog(
-                title: const Text(
-                  'Permission Permanently Denied',
-                ),
-                content: Text(
-                  'You have permanently denied ${permission.displayName} permission. '
-                  'Please enable it in settings to use this feature.',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed:
-                        () => Navigator.pop(
-                          dialogContext,
-                          false,
-                        ),
-                    child: const Text('Cancel'),
-                  ),
-                  ElevatedButton(
-                    onPressed:
-                        () => Navigator.pop(
-                          dialogContext,
-                          true,
-                        ),
-                    child: const Text('Open Settings'),
-                  ),
-                ],
+              (_) => PermissionPermanentDialog(
+                permissions: [permission],
+                title:
+                    '${permission.displayName} Permission Blocked',
+                message:
+                    '${permission.displayName} permission is permanently denied. Please enable it from app settings.',
               ),
         ) ??
         false;

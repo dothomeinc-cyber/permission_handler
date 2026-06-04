@@ -12,9 +12,7 @@ import 'models/permission_result.dart';
 
 final permissionManagerProvider =
     Provider<PermissionManager>((ref) {
-      final manager = PermissionManager();
-      ref.onDispose(() => manager.dispose());
-      return manager;
+      return PermissionManager();
     });
 
 final permissionStateProvider =

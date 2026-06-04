@@ -1,7 +1,5 @@
 # Changelog
 
-# Changelog
-
 All notable changes to the `permission_handler_package` package will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
@@ -9,57 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.0.5] - 2024-01-16
+## [1.0.6] - 2024-01-16
 
-### 🚀 Major Fixes & Improvements
+### 🚀 Major Features & Improvements
+
+#### ✨ New Features
+- **Smart Permission Builder** - Now automatically detects permanent denial and shows appropriate UI
+  - Shows "Allow Permission" button for normal denied state
+  - Shows "Open Settings" button for permanently denied state
+  - Automatically refreshes state after returning from settings
+- **Intelligent Retry Tracking** - Proper retry count tracking (0, 1) in denial dialogs
+  - First denial: "Attempt 1 of 2"
+  - Second denial: "Attempt 2 of 2"
+- **Permanent Denial Detection** - Built-in detection with automatic settings redirection
+- **Improved Permission Flow** - Complete flow from initial request to permanent denial handling
 
 #### 🔧 Critical Fixes
-- **Removed plugin declaration** - Package is now correctly identified as a pure Dart package (no native Android/iOS code)
-- **Fixed Android build error** - Resolved "plugin doesn't have a main class defined" error
-- **Fixed iOS build error** - Removed unnecessary native plugin requirements
+- **Removed `ref.onDispose(() => manager.dispose())`** - PermissionManager is now correctly implemented as singleton
+- **Fixed provider memory leaks** - No more unnecessary disposal of singleton instance
+- **Added mounted checks** - Prevents calling `ref.invalidate` on disposed widgets in PermissionBuilder
+- **Fixed retry dialog display** - Now shows correct attempt number instead of always showing "1 of 2"
 
-#### 📦 Package Structure Changes
-- **Removed `flutter.plugin` section** from `pubspec.yaml` - No longer declares as native plugin
-- **Pure Dart package** - Correctly wraps `permission_handler` without duplicating native code
-- **Simplified installation** - No more native file conflicts
+#### 🎨 UI Improvements
+- **Redesigned PermissionBuilder denied card** - Professional, modern card design
+  - Circular icon background with adaptive colors
+  - Permission-specific title and description
+  - Dynamic button text and color based on denial state
+  - Loading state while checking permanent denial status
+- **Enhanced visual feedback** - Different icons for denied vs permanently denied states
+- **Better error handling** - Graceful fallbacks for edge cases
 
-#### 🎯 What Changed
-```diff
-- flutter:
--   plugin:
--     platforms:
--       android:
--         package: com.permission.handler.package
--         pluginClass: PermissionHandlerPackagePlugin
--       ios:
--         pluginClass: PermissionHandlerPackagePlugin
-+ # No plugin declaration - pure Dart package
+#### 📦 Package Structure
+- **Removed unnecessary imports** - Cleaned up `permission_builder.dart` imports
+- **Improved code organization** - Better separation of concerns
+- **Simplified widget API** - Cleaner, more intuitive interface
 
-All notable changes to the `permission_handler_package` package will be documented in this file.
+#### 🔄 Permission Flow Improvements
+- **Pre-flight status check** - Checks current permission status before showing dialogs
+- **Permanent denial shortcut** - Immediately shows settings dialog without unnecessary requests
+- **Smart retry loop** - While loop with proper retry counting (max 2 attempts)
+- **State refresh after settings** - Automatically rechecks permission status when returning from settings
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+### 📝 Example Updates
 
----
-
-## [1.0.4] - 2024-01-15
-
-### 🎯 Major Improvements
-
-#### 🧹 Code Cleanup & Simplification
-- **Removed redundant screens** - `PermissionInitialScreen`, `PermissionDeniedScreen`, `PermissionPermanentScreen`, `PermissionSettingsScreen` removed
-- **Consolidated UI** - Now only dialogs handle all permission flows (no duplication)
-- **Simplified architecture** - Cleaner, more maintainable codebase
-
-#### 🐛 Bug Fixes
-- Fixed deprecated `withOpacity()` warnings → replaced with `withAlpha()`
-- Fixed incorrect import paths across all files
-- Fixed missing `permission_provider.dart` import in settings widget
-- Fixed all circular dependency issues
-
-#### 🔧 Dependency Updates
-- Updated `permission_handler` to latest version
-- Updated `flutter_riverpod` compatibility
-- Updated `flutter_screenutil` integration
-
-#### 📁 Structure Changes
+#### New Smart PermissionBuilder
+```dart
+PermissionBuilder(
+  permission: PermissionType.camera,
+  builder: (context, isGranted) {
+    // Your widget when permission is granted
+    return CameraWidget();
+  },
+)
+// Automatically shows:
+// - Permission card with "Allow Permission" when denied
+// - Settings card with "Open Settings" when permanently denied

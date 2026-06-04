@@ -6,9 +6,8 @@
 [![Riverpod](https://img.shields.io/badge/State%20Management-Riverpod-25B6FF)](https://riverpod.dev)
 [![Google Fonts](https://img.shields.io/badge/Fonts-Google%20Fonts-4285F4)](https://fonts.google.com)
 [![Permission Handler](https://img.shields.io/badge/Permission%20Handler-11.3.0+-green)](https://pub.dev/packages/permission_handler)
-[![Code Size](https://img.shields.io/github/languages/code-size/yourusername/permission_handler_package)](https://github.com/yourusername/permission_handler_package)
 
-A professional Flutter package for handling permissions automatically with **Riverpod** state management, **retry logic**, **beautiful UI dialogs**, and **ScreenUtil** responsive design.
+A professional Flutter package for handling permissions automatically with **Riverpod** state management, **retry logic**, **beautiful UI dialogs**, **permanent denial detection**, **smart permission builder**, and **ScreenUtil** responsive design.
 
 ---
 
@@ -29,7 +28,7 @@ A professional Flutter package for handling permissions automatically with **Riv
   - [1. Request Single Permission](#1-request-single-permission)
   - [2. Request Permission Group](#2-request-permission-group)
   - [3. Permission Wrapper Widget](#3-permission-wrapper-widget)
-  - [4. Reactive Permission Builder](#4-reactive-permission-builder)
+  - [4. Reactive Permission Builder (Smart)](#4-reactive-permission-builder-smart)
   - [5. Check Permission Status](#5-check-permission-status)
   - [6. Listen to Permission Changes](#6-listen-to-permission-changes)
   - [7. Custom Explanation Dialog](#7-custom-explanation-dialog)
@@ -38,6 +37,8 @@ A professional Flutter package for handling permissions automatically with **Riv
   - [10. Conditional UI Based on Permissions](#10-conditional-ui-based-on-permissions)
   - [11. Smart Request (Request If Needed)](#11-smart-request-request-if-needed)
   - [12. Reset Permission State](#12-reset-permission-state)
+  - [13. Open App Settings](#13-open-app-settings)
+  - [14. Clear Permission Cache](#14-clear-permission-cache)
 - [API Reference](#api-reference)
   - [PermissionActionNotifier Methods](#permissionactionnotifier-methods)
   - [PermissionManager Methods](#permissionmanager-methods)
@@ -50,11 +51,14 @@ A professional Flutter package for handling permissions automatically with **Riv
   - [Lifecycle Gap Handling](#lifecycle-gap-handling)
   - [Permission Change Listening](#permission-change-listening)
   - [Platform-Specific Notes](#platform-specific-notes)
+  - [Permanent Denial Detection](#permanent-denial-detection)
+  - [Smart Retry Logic](#smart-retry-logic)
 - [Customization](#customization)
   - [Custom Theme Integration](#custom-theme-integration)
   - [Custom Loading Widget](#custom-loading-widget)
   - [Custom Denied Widget](#custom-denied-widget)
   - [Custom Explanation Dialogs](#custom-explanation-dialogs)
+  - [Override Default Permission Card](#override-default-permission-card)
 - [Cheatsheet](#cheatsheet)
 - [Troubleshooting](#troubleshooting)
 - [FAQ](#faq)
@@ -72,8 +76,9 @@ A professional Flutter package for handling permissions automatically with **Riv
 | **Permanent Denial Detection** | Handles permanently denied permissions with settings redirection |
 | **System Settings Navigation** | One-click redirect to app settings |
 | **Beautiful UI Dialogs** | Customizable, theme-aware permission dialogs |
+| **Smart Permission Builder** | Automatically shows permission card or open settings based on denial state |
 | **Permission Wrapper** | Easy-to-use widget wrapper for protected screens |
-| **Reactive Permission Builder** | Real-time permission status updates |
+| **Reactive Permission Builder** | Real-time permission status updates with built-in UI |
 | **Responsive Design** | Built with ScreenUtil for responsive layouts |
 | **Custom Theme Support** | Integrates with your existing theme |
 | **Cross-Platform** | Fully supports both iOS and Android |
@@ -86,6 +91,7 @@ A professional Flutter package for handling permissions automatically with **Riv
 | **Lifecycle Gap Handling** | Safe operation queuing before WidgetsBinding is ready |
 | **Permission Change Listening** | Real-time stream of permission status changes |
 | **Automatic Permanent Denial Handling** | Auto-redirects to settings when permission is permanently denied |
+| **Context-Aware Permission Card** | Permission denied card that detects permanent denial and shows appropriate action |
 
 ---
 
@@ -478,7 +484,9 @@ class ProtectedScreen extends StatelessWidget {
 }
 ```
 
-### 4. Reactive Permission Builder
+### 4. Reactive Permission Builder (Smart)
+
+The `PermissionBuilder` automatically handles both denied and permanently denied states:
 
 ```dart
 class CameraFeature extends ConsumerWidget {
@@ -515,6 +523,16 @@ class CameraFeature extends ConsumerWidget {
   void _openCamera() {}
 }
 ```
+
+**When permission is denied** (not permanent), the PermissionBuilder shows:
+- Lock icon with "Camera Required" title
+- Permission description
+- "Allow Permission" button that triggers the permission flow
+
+**When permission is permanently denied**, it shows:
+- Block icon with "Camera Blocked" title
+- Message about enabling in settings
+- "Open Settings" button that redirects to app settings
 
 ### 5. Check Permission Status
 
@@ -785,45 +803,18 @@ class ConditionalUI extends ConsumerWidget {
         if (cameraGranted.value == true)
           const CameraWidget()
         else
-          const PermissionRequestCard(permission: PermissionType.camera),
+          const PermissionBuilder(
+            permission: PermissionType.camera,
+            builder: (context, granted) => SizedBox(),
+          ),
         if (microphoneGranted.value == true)
           const MicrophoneWidget()
         else
-          const PermissionRequestCard(permission: PermissionType.microphone),
+          const PermissionBuilder(
+            permission: PermissionType.microphone,
+            builder: (context, granted) => SizedBox(),
+          ),
       ],
-    );
-  }
-}
-
-class PermissionRequestCard extends StatelessWidget {
-  final PermissionType permission;
-
-  const PermissionRequestCard({super.key, required this.permission});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Text('${permission.displayName} Permission Required'),
-            const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: () async {
-                final container = ProviderScope.containerOf(context);
-                final actionNotifier =
-                    container.read(permissionActionProvider.notifier);
-                await actionNotifier.requestSinglePermission(
-                  permission,
-                  context: context,
-                );
-              },
-              child: const Text('Grant Permission'),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -884,6 +875,62 @@ class ResetPermissionsButton extends ConsumerWidget {
         );
       },
       child: const Text('Reset Permission State'),
+    );
+  }
+}
+```
+
+### 13. Open App Settings
+
+```dart
+class OpenSettingsButton extends ConsumerWidget {
+  const OpenSettingsButton({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ElevatedButton(
+      onPressed: () async {
+        final manager = ref.read(permissionManagerProvider);
+        await manager.openAppSettings();
+      },
+      child: const Text('Open App Settings'),
+    );
+  }
+}
+```
+
+### 14. Clear Permission Cache
+
+```dart
+class ClearCacheButton extends ConsumerWidget {
+  const ClearCacheButton({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      children: [
+        ElevatedButton(
+          onPressed: () {
+            final manager = ref.read(permissionManagerProvider);
+            manager.clearCache(PermissionType.camera);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Camera cache cleared')),
+            );
+          },
+          child: const Text('Clear Camera Cache'),
+        ),
+        const SizedBox(height: 8),
+        ElevatedButton(
+          onPressed: () {
+            final manager = ref.read(permissionManagerProvider);
+            manager.clearAllCache();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('All cache cleared')),
+            );
+          },
+          child: const Text('Clear All Cache'),
+        ),
+      ],
     );
   }
 }
@@ -958,16 +1005,16 @@ class ResetPermissionsButton extends ConsumerWidget {
 | Widget | Purpose |
 |---|---|
 | `PermissionWrapper` | Wraps any widget tree behind a permission gate; handles loading and denied states automatically |
-| `PermissionBuilder` | Rebuilds UI reactively based on a single permission's status; shows a tap-to-grant prompt when denied |
+| `PermissionBuilder` | Rebuilds UI reactively based on a single permission's status; automatically shows permission card for denied state and open settings for permanently denied |
 | `PermissionInitialDialog` | Dialog shown on the first permission request — lists all required permissions with icons |
-| `PermissionDeniedDialog` | Dialog shown when a permission is denied — includes retry count and retry/cancel actions |
+| `PermissionDeniedDialog` | Dialog shown when a permission is denied — includes retry count (tracked from 0 to 2) and retry/cancel actions |
 | `PermissionPermanentDialog` | Dialog shown when a permission is permanently denied — prompts user to open device settings |
 
 ### Providers
 
 | Provider | Type | Description |
 |---|---|---|
-| `permissionManagerProvider` | `Provider<PermissionManager>` | Provides the `PermissionManager` singleton; auto-disposed |
+| `permissionManagerProvider` | `Provider<PermissionManager>` | Provides the `PermissionManager` singleton (no auto-dispose - singleton) |
 | `permissionStateProvider` | `ChangeNotifierProvider<PermissionNotifier>` | Reactive permission state map across the app |
 | `permissionActionProvider` | `StateNotifierProvider<PermissionActionNotifier, AsyncValue<void>>` | All permission request actions and callbacks |
 | `permissionStatusProvider` | `FutureProvider.family<bool, PermissionType>` | Watches a single permission's granted status |
@@ -1051,6 +1098,42 @@ final note = manager.getPlatformNote(PermissionType.photos);
 if (note.isNotEmpty) {
   print(note); // e.g. "iOS requires separate permission for photos"
 }
+```
+
+### Permanent Denial Detection
+
+The package automatically detects when a permission is permanently denied and guides users to enable it:
+
+```dart
+final manager = ref.read(permissionManagerProvider);
+final isPermanentlyDenied = await manager.isPermissionPermanentlyDenied(
+  PermissionType.camera,
+);
+
+if (isPermanentlyDenied) {
+  await manager.openAppSettings();
+}
+```
+
+The `PermissionBuilder` widget handles this automatically:
+- When permission is normally denied → shows "Allow Permission" button
+- When permission is permanently denied → shows "Open Settings" button
+
+### Smart Retry Logic
+
+The package includes intelligent retry logic for denied permissions:
+
+- **First denial** → Shows retry dialog with "Attempt 1 of 2"
+- **Second denial** → Shows retry dialog with "Attempt 2 of 2"
+- **After 2 attempts** → If still denied, no further automatic retries
+
+```dart
+// Retry logic is built into requestPermissionWithExplanation()
+final result = await manager.requestPermissionWithExplanation(
+  PermissionType.camera,
+  context: context,
+);
+// Will automatically handle up to 2 retries with user prompts
 ```
 
 ---
@@ -1157,6 +1240,23 @@ actionNotifier.removePermissionExplanationCallback();
 actionNotifier.removeGroupExplanationCallback();
 ```
 
+### Override Default Permission Card
+
+The `PermissionBuilder` allows you to provide a completely custom denied widget:
+
+```dart
+PermissionBuilder(
+  permission: PermissionType.camera,
+  deniedWidget: YourCustomPermissionCard(
+    permission: PermissionType.camera,
+    onRequest: () => _requestPermission(),
+  ),
+  builder: (context, granted) {
+    return YourFeatureWidget();
+  },
+);
+```
+
 ---
 
 ## Cheatsheet
@@ -1202,6 +1302,11 @@ final groupGranted = ref.watch(
 final manager = ref.read(permissionManagerProvider);
 final isGranted = await manager.isPermissionGranted(PermissionType.camera);
 
+// Check permanent denial
+final isPermanentlyDenied = await manager.isPermissionPermanentlyDenied(
+  PermissionType.camera,
+);
+
 // Bypass cache for a fresh check
 final results = await manager.checkPermissionsStatus(
   [PermissionType.camera],
@@ -1217,6 +1322,7 @@ PermissionWrapper(
   child: YourWidget(),
 )
 
+// Smart builder - auto handles denied/permanently denied states
 PermissionBuilder(
   permission: PermissionType.camera,
   builder: (context, isGranted) => YourWidget(isGranted),
@@ -1248,6 +1354,12 @@ manager.clearAllCache();                    // Clear all
 ```dart
 ref.read(permissionActionProvider.notifier).reset();
 ref.invalidate(permissionStateProvider);
+```
+
+**Open settings:**
+
+```dart
+await ref.read(permissionManagerProvider).openAppSettings();
 ```
 
 **Common app permission combinations:**
@@ -1315,14 +1427,11 @@ return ScreenUtilInit(
 
 **Memory leaks**
 
-`PermissionManager` is disposed automatically via `ref.onDispose` in `permissionManagerProvider`. For manual usage outside Riverpod:
+`PermissionManager` is a singleton and does not need disposal. For manual usage:
 
 ```dart
-@override
-void dispose() {
-  ref.read(permissionManagerProvider).dispose();
-  super.dispose();
-}
+// No need to dispose - singleton pattern
+final manager = PermissionManager();
 ```
 
 **Context not available errors**
@@ -1346,6 +1455,14 @@ final results = await manager.checkPermissionsStatus(
   [PermissionType.camera],
   bypassCache: true,
 );
+```
+
+**Permission card shows wrong button after returning from settings**
+
+The `PermissionBuilder` automatically rechecks permanent denial status after `openAppSettings()` returns. If issues persist, manually invalidate:
+
+```dart
+ref.invalidate(permissionStatusProvider(PermissionType.camera));
 ```
 
 ---
@@ -1467,6 +1584,14 @@ When `PermissionHandler.initialize()` is called, it registers a `WidgetsBindingO
 **Q: What happens if I call methods before initialization completes?**
 
 Operations are queued internally and executed automatically once initialization finishes — nothing is dropped.
+
+**Q: How does the PermissionBuilder detect permanent denial?**
+
+The `PermissionBuilder` checks `isPermissionPermanentlyDenied()` during initialization and after each permission request. If permanently denied, it shows an "Open Settings" button instead of "Allow Permission".
+
+**Q: How many retries are attempted for denied permissions?**
+
+The package attempts up to 2 retries, showing a dialog with the current attempt number (1 of 2, 2 of 2). After 2 failures, no further automatic retries occur.
 
 ---
 
