@@ -75,7 +75,7 @@ class _PermissionBuilderState
                 ),
               ),
       error:
-          (_, __) => Center(
+          (_, _) => Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

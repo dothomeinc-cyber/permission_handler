@@ -296,6 +296,9 @@ class PermissionManager {
         int retryCount = 0;
 
         while (retryCount < 2) {
+          // ✅ Guard: Check if context is still valid before showing dialog
+          if (!ctx.mounted) break;
+
           final retry = await _showDeniedDialog(ctx, [
             permission,
           ], retryCount);
@@ -332,10 +335,13 @@ class PermissionManager {
           }
 
           if (result.isPermanentlyDenied) {
-            await _showPermanentDenialDialog(
-              ctx,
-              permission,
-            );
+            // ✅ Guard: Check mounted before showing dialog after async operation
+            if (ctx.mounted) {
+              await _showPermanentDenialDialog(
+                ctx,
+                permission,
+              );
+            }
             break; // Exit loop, permanently denied
           }
         }

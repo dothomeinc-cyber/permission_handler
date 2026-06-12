@@ -1,5 +1,6 @@
 /// Permission Handler Package - Fully Automatic
 /// No manual handling required. Just add to your pubspec.yaml and it works.
+// ignore: unnecessary_library_name
 library permission_handler_package;
 
 import 'package:flutter/widgets.dart';
@@ -13,6 +14,19 @@ export 'core/permissions/permission_state.dart';
 // Models
 export 'core/permissions/models/permission_type.dart';
 export 'core/permissions/models/permission_result.dart';
+
+// Widgets
+export 'core/permissions/widgets/permission_builder.dart';
+export 'core/permissions/widgets/permission_wrapper.dart';
+export 'core/permissions/widgets/permission_denied_dialog.dart';
+export 'core/permissions/widgets/permission_initial_dialog.dart';
+export 'core/permissions/widgets/permission_permanent_dialog.dart';
+
+// Screens (if you want to export them as well)
+export 'core/permissions/screens/permission_denied_screen.dart';
+export 'core/permissions/screens/permission_initial_screen.dart';
+export 'core/permissions/screens/permission_permanent_screen.dart';
+export 'core/permissions/screens/permission_settings_screen.dart';
 
 /// Initialize the permission handler package
 /// Call this as early as possible in your app, ideally before runApp()
