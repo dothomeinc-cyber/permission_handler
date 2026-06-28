@@ -9,6 +9,7 @@ import 'permission_manager.dart';
 import 'permission_state.dart';
 import 'models/permission_type.dart';
 import 'models/permission_result.dart';
+import 'widgets/permission_permanent_dialog.dart';
 
 final permissionManagerProvider =
     Provider<PermissionManager>((ref) {
@@ -78,25 +79,6 @@ class PermissionActionNotifier
     });
   }
 
-  void setPermissionExplanationCallback(
-    PermissionExplanationCallback callback,
-  ) {
-    _manager.setOnBeforePermissionRequest(callback);
-  }
-
-  void setGroupExplanationCallback(
-    PermissionGroupExplanationCallback callback,
-  ) {
-    _manager.setOnBeforeGroupRequest(callback);
-  }
-
-  void removePermissionExplanationCallback() {
-    _manager.setOnBeforePermissionRequest(null);
-  }
-
-  void removeGroupExplanationCallback() {
-    _manager.setOnBeforeGroupRequest(null);
-  }
 
   Future<void> autoInitialize() async {
     if (_isDisposed) return;
@@ -250,66 +232,17 @@ class PermissionActionNotifier
   }) async {
     if (!context.mounted) return false;
 
-    final completer = Completer<bool>();
-    final localContext = context;
-
-    if (!localContext.mounted) {
-      completer.complete(false);
-      return completer.future;
-    }
-
-    showDialog<bool>(
-          context: localContext,
+    return await showDialog<bool>(
+          context: context,
           barrierDismissible: false,
           builder:
-              (dialogContext) => AlertDialog(
-                title: Text(
-                  title ?? 'Permissions Permanently Denied',
-                ),
-                content: Text(
-                  message ??
-                      'You have permanently denied the following permissions:\n\n'
-                          '${permissions.map((p) => '• ${p.displayName}').join('\n')}\n\n'
-                          'Please enable them in device settings to continue.',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      if (dialogContext.mounted) {
-                        Navigator.pop(dialogContext, false);
-                      }
-                      if (!completer.isCompleted) {
-                        completer.complete(false);
-                      }
-                    },
-                    child: const Text('Cancel'),
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      if (dialogContext.mounted) {
-                        Navigator.pop(dialogContext, true);
-                      }
-                      if (!completer.isCompleted) {
-                        completer.complete(true);
-                      }
-                    },
-                    child: const Text('Open Settings'),
-                  ),
-                ],
+              (_) => PermissionPermanentDialog(
+                permissions: permissions,
+                title: title,
+                message: message,
               ),
-        )
-        .then((result) {
-          if (!completer.isCompleted) {
-            completer.complete(result ?? false);
-          }
-        })
-        .catchError((e) {
-          if (!completer.isCompleted) {
-            completer.complete(false);
-          }
-        });
-
-    return completer.future;
+        ) ??
+        false;
   }
 
   Future<PermissionResult> requestIfNeeded(
@@ -406,11 +339,16 @@ final permissionActionProvider = StateNotifierProvider<
     stateNotifier,
   );
 
-  Future.microtask(() {
+  // addPostFrameCallback runs after the first frame, which is always after
+  // PermissionHandler.initialize() has been awaited in main(). This avoids
+  // the race where autoInitialize() checks _isInitialized before
+  // markInitialized() has been called.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
     try {
       notifier.autoInitialize();
-    } catch (e) {
-      // Provider might have been disposed
+    } catch (_) {
+      // Notifier may already be disposed if the provider was invalidated
+      // before the first frame completed.
     }
   });
 

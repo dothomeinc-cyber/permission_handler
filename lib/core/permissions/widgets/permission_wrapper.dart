@@ -40,7 +40,12 @@ class _PermissionWrapperState
   @override
   void initState() {
     super.initState();
-    _checkPermissions();
+    // addPostFrameCallback defers until the first frame is rendered,
+    // so context is fully attached and any dialogs shown inside
+    // initializeRequiredPermissions have a valid Overlay to attach to.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _checkPermissions();
+    });
   }
 
   Future<void> _checkPermissions() async {
@@ -143,29 +148,15 @@ class _PermissionWrapperState
                       textAlign: TextAlign.center,
                     ),
                     SizedBox(height: 24.h),
-                    ElevatedButton(
-                      onPressed: _checkPermissions,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            theme.colorScheme.primary,
-                        foregroundColor:
-                            theme.colorScheme.onPrimary,
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 32.w,
-                          vertical: 14.h,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(12.r),
-                        ),
+                    Text(
+                      'Please allow the required permission from the system permission dialog or app settings.',
+                      style: GoogleFonts.urbanist(
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.w500,
+                        color: theme.colorScheme.onSurface
+                            .withAlpha(140),
                       ),
-                      child: Text(
-                        'Retry',
-                        style: GoogleFonts.urbanist(
-                          fontSize: 15.sp,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
+                      textAlign: TextAlign.center,
                     ),
                   ],
                 ),

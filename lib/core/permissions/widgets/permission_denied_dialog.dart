@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -5,18 +6,67 @@ import '../models/permission_type.dart';
 
 class PermissionDeniedDialog extends StatelessWidget {
   final List<PermissionType> permissions;
-  final int retryCount;
-  final int maxRetries;
 
   const PermissionDeniedDialog({
     super.key,
     required this.permissions,
-    required this.retryCount,
-    required this.maxRetries,
   });
+
+  bool _isCupertino(BuildContext context) {
+    final platform = Theme.of(context).platform;
+    return platform == TargetPlatform.iOS ||
+        platform == TargetPlatform.macOS;
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isCupertino(context)) {
+      return _buildCupertinoDialog(context);
+    }
+    return _buildMaterialDialog(context);
+  }
+
+  Widget _buildCupertinoDialog(BuildContext context) {
+    final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+    return CupertinoAlertDialog(
+      title: Text(
+        'Permission Denied',
+        style: GoogleFonts.urbanist(
+          fontSize: 18.sp,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      content: Padding(
+        padding: EdgeInsets.only(top: 8.h),
+        child: Text(
+          'You denied the following permissions:\n\n'
+          '${permissions.map((p) => '• ${p.displayName}').join('\n')}\n\n'
+          'These permissions are required for the app to work properly.',
+          style: GoogleFonts.urbanist(
+            fontSize: 14.sp,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+      ),
+      actions: [
+        CupertinoDialogAction(
+          isDefaultAction: true,
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(
+            'OK',
+            style: GoogleFonts.urbanist(
+              fontSize: 15.sp,
+              fontWeight: FontWeight.w800,
+              color: primary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMaterialDialog(BuildContext context) {
     final theme = Theme.of(context);
 
     return Dialog(
@@ -31,9 +81,7 @@ class PermissionDeniedDialog extends StatelessWidget {
             Container(
               padding: EdgeInsets.all(16.w),
               decoration: BoxDecoration(
-                color: theme.colorScheme.error.withAlpha(
-                  30,
-                ), // Fixed
+                color: theme.colorScheme.error.withAlpha(30),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -60,90 +108,31 @@ class PermissionDeniedDialog extends StatelessWidget {
               style: GoogleFonts.urbanist(
                 fontSize: 14.sp,
                 fontWeight: FontWeight.w400,
-                color: theme.colorScheme.onSurface
-                    .withAlpha(180), // Fixed
+                color: theme.colorScheme.onSurface.withAlpha(180),
               ),
               textAlign: TextAlign.center,
-            ),
-            SizedBox(height: 16.h),
-            Container(
-              padding: EdgeInsets.symmetric(
-                horizontal: 12.w,
-                vertical: 6.h,
-              ),
-              decoration: BoxDecoration(
-                color: theme
-                    .colorScheme
-                    .surfaceContainerHighest
-                    .withAlpha(130), // Fixed
-                borderRadius: BorderRadius.circular(20.r),
-              ),
-              child: Text(
-                'Attempt ${retryCount + 1} of $maxRetries',
-                style: GoogleFonts.urbanist(
-                  fontSize: 12.sp,
-                  fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.onSurface
-                      .withAlpha(160), // Fixed
-                ),
-              ),
             ),
             SizedBox(height: 24.h),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed:
-                    () => Navigator.of(context).pop(true),
+                onPressed: () => Navigator.of(context).pop(),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      theme.colorScheme.primary,
-                  foregroundColor:
-                      theme.colorScheme.onPrimary,
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: theme.colorScheme.onPrimary,
                   padding: EdgeInsets.symmetric(
                     horizontal: 24.w,
                     vertical: 14.h,
                   ),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(
-                      12.r,
-                    ),
+                    borderRadius: BorderRadius.circular(12.r),
                   ),
                 ),
                 child: Text(
-                  'Retry',
+                  'OK',
                   style: GoogleFonts.urbanist(
                     fontSize: 15.sp,
                     fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(height: 12.h),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed:
-                    () => Navigator.of(context).pop(false),
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(
-                    color: theme.colorScheme.primary
-                        .withAlpha(80),
-                  ), // Fixed
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 24.w,
-                    vertical: 14.h,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(
-                      12.r,
-                    ),
-                  ),
-                ),
-                child: Text(
-                  'Cancel',
-                  style: GoogleFonts.urbanist(
-                    fontSize: 14.sp,
-                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),

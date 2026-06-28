@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../permission_provider.dart';
 import '../models/permission_type.dart';
+import 'permission_permanent_dialog.dart';
 
 class PermissionBuilder extends ConsumerStatefulWidget {
   final PermissionType permission;
@@ -36,7 +37,11 @@ class _PermissionBuilderState
   @override
   void initState() {
     super.initState();
-    _checkPermanentDenial();
+    // Defer so the widget is fully mounted before we read providers
+    // and potentially trigger UI updates.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _checkPermanentDenial();
+    });
   }
 
   Future<void> _checkPermanentDenial() async {
@@ -91,16 +96,6 @@ class _PermissionBuilderState
                   style: GoogleFonts.urbanist(
                     fontSize: 14.sp,
                   ),
-                ),
-                SizedBox(height: 8.h),
-                TextButton(
-                  onPressed:
-                      () => ref.invalidate(
-                        permissionStatusProvider(
-                          widget.permission,
-                        ),
-                      ),
-                  child: const Text('Retry'),
                 ),
               ],
             ),
@@ -185,14 +180,8 @@ class _PermissionBuilderState
                         ? _openSettings
                         : _requestPermission,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      _isPermanentlyDenied
-                          ? theme.colorScheme.error
-                          : theme.colorScheme.primary,
-                  foregroundColor:
-                      _isPermanentlyDenied
-                          ? theme.colorScheme.onError
-                          : theme.colorScheme.onPrimary,
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: theme.colorScheme.onPrimary,
                   padding: EdgeInsets.symmetric(
                     horizontal: 24.w,
                     vertical: 14.h,
@@ -221,6 +210,22 @@ class _PermissionBuilderState
   }
 
   Future<void> _openSettings() async {
+    final shouldOpenSettings = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder:
+              (_) => PermissionPermanentDialog(
+                permissions: [widget.permission],
+                title:
+                    '${widget.permission.displayName} Permission Blocked',
+                message:
+                    '${widget.permission.displayName} permission is permanently denied. Please enable it from app settings.',
+              ),
+        ) ??
+        false;
+
+    if (!shouldOpenSettings || !mounted) return;
+
     final manager = ref.read(permissionManagerProvider);
     await manager.openAppSettings();
 

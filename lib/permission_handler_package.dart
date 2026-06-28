@@ -22,11 +22,6 @@ export 'core/permissions/widgets/permission_denied_dialog.dart';
 export 'core/permissions/widgets/permission_initial_dialog.dart';
 export 'core/permissions/widgets/permission_permanent_dialog.dart';
 
-// Screens (if you want to export them as well)
-export 'core/permissions/screens/permission_denied_screen.dart';
-export 'core/permissions/screens/permission_initial_screen.dart';
-export 'core/permissions/screens/permission_permanent_screen.dart';
-export 'core/permissions/screens/permission_settings_screen.dart';
 
 /// Initialize the permission handler package
 /// Call this as early as possible in your app, ideally before runApp()

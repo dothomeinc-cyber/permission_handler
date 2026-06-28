@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -15,8 +16,73 @@ class PermissionInitialDialog extends StatelessWidget {
     this.message,
   });
 
+  bool _isCupertino(BuildContext context) {
+    final platform = Theme.of(context).platform;
+    return platform == TargetPlatform.iOS ||
+        platform == TargetPlatform.macOS;
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_isCupertino(context)) {
+      return _buildCupertinoDialog(context);
+    }
+    return _buildMaterialDialog(context);
+  }
+
+  Widget _buildCupertinoDialog(BuildContext context) {
+    final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+    final onSurface = theme.colorScheme.onSurface;
+
+    return CupertinoAlertDialog(
+      title: Text(
+        title ?? 'Permissions Required',
+        style: GoogleFonts.urbanist(
+          fontSize: 18.sp,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      content: Padding(
+        padding: EdgeInsets.only(top: 8.h),
+        child: Text(
+          '${message ?? 'This app needs the following permissions to function properly:'}\n\n'
+          '${permissions.map((p) => '• ${p.displayName}').join('\n')}',
+          style: GoogleFonts.urbanist(
+            fontSize: 14.sp,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+      ),
+      actions: [
+        CupertinoDialogAction(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(
+            'Cancel',
+            style: GoogleFonts.urbanist(
+              fontSize: 15.sp,
+              fontWeight: FontWeight.w500,
+              color: onSurface.withAlpha(150),
+            ),
+          ),
+        ),
+        CupertinoDialogAction(
+          isDefaultAction: true,
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(
+            'Continue',
+            style: GoogleFonts.urbanist(
+              fontSize: 15.sp,
+              fontWeight: FontWeight.w800,
+              color: primary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMaterialDialog(BuildContext context) {
     final theme = Theme.of(context);
 
     return Dialog(
@@ -31,9 +97,7 @@ class PermissionInitialDialog extends StatelessWidget {
             Container(
               padding: EdgeInsets.all(16.w),
               decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withAlpha(
-                  30,
-                ), // Fixed
+                color: theme.colorScheme.primary.withAlpha(30),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -59,8 +123,7 @@ class PermissionInitialDialog extends StatelessWidget {
               style: GoogleFonts.urbanist(
                 fontSize: 14.sp,
                 fontWeight: FontWeight.w400,
-                color: theme.colorScheme.onSurface
-                    .withAlpha(180), // Fixed
+                color: theme.colorScheme.onSurface.withAlpha(180),
               ),
               textAlign: TextAlign.center,
             ),
@@ -68,67 +131,50 @@ class PermissionInitialDialog extends StatelessWidget {
             Container(
               padding: EdgeInsets.all(16.w),
               decoration: BoxDecoration(
-                color: theme
-                    .colorScheme
-                    .surfaceContainerHighest
-                    .withAlpha(130), // Fixed
+                color: theme.colorScheme.surfaceContainerHighest.withAlpha(130),
                 borderRadius: BorderRadius.circular(12.r),
               ),
               child: Column(
-                children:
-                    permissions.map((permission) {
-                      return Padding(
-                        padding: EdgeInsets.symmetric(
-                          vertical: 8.h,
+                children: permissions.map((permission) {
+                  return Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8.h),
+                    child: Row(
+                      children: [
+                        Text(
+                          permission.icon,
+                          style: TextStyle(fontSize: 24.sp),
                         ),
-                        child: Row(
-                          children: [
-                            Text(
-                              permission.icon,
-                              style: TextStyle(
-                                fontSize: 24.sp,
-                              ),
+                        SizedBox(width: 12.w),
+                        Expanded(
+                          child: Text(
+                            permission.displayName,
+                            style: GoogleFonts.urbanist(
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.w500,
+                              color: theme.colorScheme.onSurface,
                             ),
-                            SizedBox(width: 12.w),
-                            Expanded(
-                              child: Text(
-                                permission.displayName,
-                                style: GoogleFonts.urbanist(
-                                  fontSize: 14.sp,
-                                  fontWeight:
-                                      FontWeight.w500,
-                                  color:
-                                      theme
-                                          .colorScheme
-                                          .onSurface,
-                                ),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
-                      );
-                    }).toList(),
+                      ],
+                    ),
+                  );
+                }).toList(),
               ),
             ),
             SizedBox(height: 24.h),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed:
-                    () => Navigator.of(context).pop(true),
+                onPressed: () => Navigator.of(context).pop(true),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      theme.colorScheme.primary,
-                  foregroundColor:
-                      theme.colorScheme.onPrimary,
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: theme.colorScheme.onPrimary,
                   padding: EdgeInsets.symmetric(
                     horizontal: 24.w,
                     vertical: 14.h,
                   ),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(
-                      12.r,
-                    ),
+                    borderRadius: BorderRadius.circular(12.r),
                   ),
                 ),
                 child: Text(
@@ -142,15 +188,13 @@ class PermissionInitialDialog extends StatelessWidget {
             ),
             SizedBox(height: 12.h),
             TextButton(
-              onPressed:
-                  () => Navigator.of(context).pop(false),
+              onPressed: () => Navigator.of(context).pop(false),
               child: Text(
                 'Cancel',
                 style: GoogleFonts.urbanist(
                   fontSize: 14.sp,
                   fontWeight: FontWeight.w500,
-                  color: theme.colorScheme.onSurface
-                      .withAlpha(130), // Fixed
+                  color: theme.colorScheme.onSurface.withAlpha(130),
                 ),
               ),
             ),

@@ -1,5 +1,3 @@
-// ignore_for_file: unused_field
-
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -11,10 +9,6 @@ import 'widgets/permission_initial_dialog.dart';
 import 'widgets/permission_denied_dialog.dart';
 import 'widgets/permission_permanent_dialog.dart';
 
-typedef PermissionExplanationCallback =
-    Future<bool> Function(PermissionType permission);
-typedef PermissionGroupExplanationCallback =
-    Future<bool> Function(PermissionGroup group);
 
 class PermissionManager {
   static final PermissionManager _instance =
@@ -50,43 +44,6 @@ class PermissionManager {
   final int _cacheTTLSeconds = 3;
   final int _periodicRefreshMinutes = 2;
 
-  PermissionExplanationCallback? _onBeforePermissionRequest;
-  PermissionGroupExplanationCallback? _onBeforeGroupRequest;
-
-  final Map<PermissionType, String> _defaultExplanations = {
-    PermissionType.camera:
-        'We need camera access to take photos and scan documents',
-    PermissionType.microphone:
-        'We need microphone access for voice recording and calls',
-    PermissionType.location:
-        'We need location access to find nearby places',
-    PermissionType.storage:
-        'We need storage access to save and manage files',
-    PermissionType.photos:
-        'We need photo access to select and save images',
-    PermissionType.videos:
-        'We need video access to record and share videos',
-    PermissionType.audio:
-        'We need audio access to play and manage music',
-    PermissionType.contacts:
-        'We need contact access to share with friends',
-    PermissionType.notifications:
-        'We need notification access to send you alerts',
-    PermissionType.calendarWriteOnly:
-        'We need calendar access to schedule events',
-    PermissionType.calendarFullAccess:
-        'We need calendar access to manage events',
-    PermissionType.reminders:
-        'We need reminder access to set notifications',
-    PermissionType.bluetooth:
-        'We need bluetooth access to connect to devices',
-    PermissionType.sensors:
-        'We need sensor access for health tracking',
-    PermissionType.sms:
-        'We need SMS access to verify your number',
-    PermissionType.phone:
-        'We need phone access to make calls',
-  };
 
   /// Mark manager as initialized (call after WidgetsFlutterBinding.ensureInitialized())
   void markInitialized() {
@@ -135,21 +92,6 @@ class PermissionManager {
     });
   }
 
-  void setOnBeforePermissionRequest(
-    PermissionExplanationCallback? callback,
-  ) {
-    _safeExecute(() {
-      _onBeforePermissionRequest = callback;
-    });
-  }
-
-  void setOnBeforeGroupRequest(
-    PermissionGroupExplanationCallback? callback,
-  ) {
-    _safeExecute(() {
-      _onBeforeGroupRequest = callback;
-    });
-  }
 
   BuildContext? getCurrentContext() {
     if (!_isInitialized) return null;
@@ -293,58 +235,7 @@ class PermissionManager {
       if (result.isPermanentlyDenied) {
         await _showPermanentDenialDialog(ctx, permission);
       } else {
-        int retryCount = 0;
-
-        while (retryCount < 2) {
-          // ✅ Guard: Check if context is still valid before showing dialog
-          if (!ctx.mounted) break;
-
-          final retry = await _showDeniedDialog(ctx, [
-            permission,
-          ], retryCount);
-
-          if (!retry) break;
-
-          retryCount++;
-
-          final retryStatus =
-              await permission.permission.request();
-
-          result = PermissionResult(
-            permission: permission,
-            isGranted: retryStatus.isGranted,
-            isPermanentlyDenied:
-                retryStatus.isPermanentlyDenied,
-            status: retryStatus,
-          );
-
-          _permissionCache[permission] = _CachedPermission(
-            result: result,
-            timestamp: DateTime.now(),
-          );
-
-          _onPermissionChanged.add(
-            PermissionChangeEvent(
-              permission: permission,
-              result: result,
-            ),
-          );
-
-          if (result.isGranted) {
-            break; // Success! Exit retry loop
-          }
-
-          if (result.isPermanentlyDenied) {
-            // ✅ Guard: Check mounted before showing dialog after async operation
-            if (ctx.mounted) {
-              await _showPermanentDenialDialog(
-                ctx,
-                permission,
-              );
-            }
-            break; // Exit loop, permanently denied
-          }
-        }
+        await _showDeniedDialog(ctx, [permission]);
       }
     }
 
@@ -371,24 +262,20 @@ class PermissionManager {
         false;
   }
 
-  Future<bool> _showDeniedDialog(
+  Future<void> _showDeniedDialog(
     BuildContext context,
     List<PermissionType> permissions,
-    int retryCount,
   ) async {
-    if (!context.mounted) return false;
+    if (!context.mounted) return;
 
-    return await showDialog<bool>(
-          context: context,
-          barrierDismissible: false,
-          builder:
-              (_) => PermissionDeniedDialog(
-                permissions: permissions,
-                retryCount: retryCount,
-                maxRetries: 2,
-              ),
-        ) ??
-        false;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (_) => PermissionDeniedDialog(
+            permissions: permissions,
+          ),
+    );
   }
 
   Future<void> _showPermanentDenialDialog(
@@ -562,7 +449,10 @@ class PermissionManager {
 
   // Private methods
   void _setupAutomaticLifecycleHandler() {
-    // Ensure WidgetsBinding is available
+    // ensureInitialized() is a no-op if the binding is already ready,
+    // and safely initialises it when the singleton is created early
+    // (e.g. from a provider read before runApp()).
+    WidgetsFlutterBinding.ensureInitialized();
     WidgetsBinding.instance.addObserver(
       AppLifecycleObserver(this),
     );
@@ -600,8 +490,11 @@ class PermissionManager {
     if (_isDisposed || _permissionCache.isEmpty) return;
     final permissionsToCheck =
         _permissionCache.keys.toList();
+    // bypassCache: true — the whole point of this call is to get fresh
+    // data from the OS, not to read the stale entries we already have.
     final newResults = await checkPermissionsStatus(
       permissionsToCheck,
+      bypassCache: true,
     );
     for (var entry in newResults.entries) {
       final cached = _permissionCache[entry.key];
