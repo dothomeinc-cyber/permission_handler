@@ -1,3 +1,6 @@
+
+
+```markdown
 # Permission Handler Package
 
 [![pub package](https://img.shields.io/pub/v/permission_handler_package.svg)](https://pub.dev/packages/permission_handler_package)
@@ -7,7 +10,7 @@
 [![Google Fonts](https://img.shields.io/badge/Fonts-Google%20Fonts-4285F4)](https://fonts.google.com)
 [![Permission Handler](https://img.shields.io/badge/Permission%20Handler-11.3.0+-green)](https://pub.dev/packages/permission_handler)
 
-A professional Flutter package for handling permissions automatically with **Riverpod** state management, **retry logic**, **beautiful UI dialogs**, **permanent denial detection**, **smart permission builder**, and **ScreenUtil** responsive design.
+A professional Flutter package for handling permissions automatically with **Riverpod** state management, **beautiful UI dialogs**, **permanent denial detection**, **smart permission builder**, and **ScreenUtil** responsive design.
 
 ---
 
@@ -31,14 +34,13 @@ A professional Flutter package for handling permissions automatically with **Riv
   - [4. Reactive Permission Builder (Smart)](#4-reactive-permission-builder-smart)
   - [5. Check Permission Status](#5-check-permission-status)
   - [6. Listen to Permission Changes](#6-listen-to-permission-changes)
-  - [7. Custom Explanation Dialog](#7-custom-explanation-dialog)
-  - [8. Multiple Permissions with Groups](#8-multiple-permissions-with-groups)
-  - [9. Check Group Permission Status](#9-check-group-permission-status)
-  - [10. Conditional UI Based on Permissions](#10-conditional-ui-based-on-permissions)
-  - [11. Smart Request (Request If Needed)](#11-smart-request-request-if-needed)
-  - [12. Reset Permission State](#12-reset-permission-state)
-  - [13. Open App Settings](#13-open-app-settings)
-  - [14. Clear Permission Cache](#14-clear-permission-cache)
+  - [7. Multiple Permissions with Groups](#8-multiple-permissions-with-groups)
+  - [8. Check Group Permission Status](#9-check-group-permission-status)
+  - [9. Conditional UI Based on Permissions](#10-conditional-ui-based-on-permissions)
+  - [10. Smart Request (Request If Needed)](#11-smart-request-request-if-needed)
+  - [11. Reset Permission State](#12-reset-permission-state)
+  - [12. Open App Settings](#13-open-app-settings)
+  - [13. Clear Permission Cache](#14-clear-permission-cache)
 - [API Reference](#api-reference)
   - [PermissionActionNotifier Methods](#permissionactionnotifier-methods)
   - [PermissionManager Methods](#permissionmanager-methods)
@@ -52,12 +54,10 @@ A professional Flutter package for handling permissions automatically with **Riv
   - [Permission Change Listening](#permission-change-listening)
   - [Platform-Specific Notes](#platform-specific-notes)
   - [Permanent Denial Detection](#permanent-denial-detection)
-  - [Smart Retry Logic](#smart-retry-logic)
 - [Customization](#customization)
   - [Custom Theme Integration](#custom-theme-integration)
   - [Custom Loading Widget](#custom-loading-widget)
   - [Custom Denied Widget](#custom-denied-widget)
-  - [Custom Explanation Dialogs](#custom-explanation-dialogs)
   - [Override Default Permission Card](#override-default-permission-card)
 - [Cheatsheet](#cheatsheet)
 - [Troubleshooting](#troubleshooting)
@@ -72,7 +72,6 @@ A professional Flutter package for handling permissions automatically with **Riv
 |---|---|
 | **Automatic Permission Handling** | Request and manage permissions seamlessly |
 | **Riverpod Integration** | Reactive state management with Riverpod |
-| **Smart Retry Logic** | Configurable retry attempts with user prompts (max 2 retries default) |
 | **Permanent Denial Detection** | Handles permanently denied permissions with settings redirection |
 | **System Settings Navigation** | One-click redirect to app settings |
 | **Beautiful UI Dialogs** | Customizable, theme-aware permission dialogs |
@@ -84,7 +83,6 @@ A professional Flutter package for handling permissions automatically with **Riv
 | **Cross-Platform** | Fully supports both iOS and Android |
 | **Zero Configuration** | Works out of the box with sensible defaults |
 | **Type Safety** | Full Dart type safety with enum-based permissions |
-| **Custom Explanation Dialogs** | Show custom messages before requesting permissions |
 | **Permission Groups** | Request multiple related permissions at once |
 | **Platform-Specific Support** | Automatically handles iOS/Android differences |
 | **Automatic Cache Management** | 3-second TTL cache with auto-invalidation on app resume |
@@ -608,99 +606,7 @@ class _PermissionListenerState extends ConsumerState<PermissionListener> {
 }
 ```
 
-### 7. Custom Explanation Dialog
-
-```dart
-class CustomPermissionExample extends ConsumerStatefulWidget {
-  const CustomPermissionExample({super.key});
-
-  @override
-  ConsumerState<CustomPermissionExample> createState() =>
-      _CustomPermissionExampleState();
-}
-
-class _CustomPermissionExampleState
-    extends ConsumerState<CustomPermissionExample> {
-  @override
-  void initState() {
-    super.initState();
-    _setupPermissionCallbacks();
-  }
-
-  void _setupPermissionCallbacks() {
-    final actionNotifier = ref.read(permissionActionProvider.notifier);
-
-    // Per-permission explanation dialog
-    actionNotifier.setPermissionExplanationCallback((permission) async {
-      return await showDialog<bool>(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => AlertDialog(
-              title: Text('Why do we need ${permission.displayName}?'),
-              content: Text(permission.description),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Not Now'),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('Allow'),
-                ),
-              ],
-            ),
-          ) ??
-          false;
-    });
-
-    // Per-group explanation dialog
-    actionNotifier.setGroupExplanationCallback((group) async {
-      return await showDialog<bool>(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => AlertDialog(
-              title: Text('Why do we need ${group.displayName} access?'),
-              content: Text(
-                'This app needs ${group.displayName} permissions to function.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Not Now'),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('Allow'),
-                ),
-              ],
-            ),
-          ) ??
-          false;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Custom Permission')),
-      body: Center(
-        child: ElevatedButton(
-          onPressed: () async {
-            final actionNotifier = ref.read(permissionActionProvider.notifier);
-            await actionNotifier.requestSinglePermission(
-              PermissionType.camera,
-              context: context,
-            );
-          },
-          child: const Text('Request Camera with Explanation'),
-        ),
-      ),
-    );
-  }
-}
-```
-
-### 8. Multiple Permissions with Groups
+### 7. Multiple Permissions with Groups
 
 ```dart
 class MultiplePermissionsScreen extends ConsumerWidget {
@@ -743,7 +649,7 @@ class MultiplePermissionsScreen extends ConsumerWidget {
 }
 ```
 
-### 9. Check Group Permission Status
+### 8. Check Group Permission Status
 
 ```dart
 class GroupStatusWidget extends ConsumerWidget {
@@ -785,7 +691,7 @@ class GroupStatusWidget extends ConsumerWidget {
 }
 ```
 
-### 10. Conditional UI Based on Permissions
+### 9. Conditional UI Based on Permissions
 
 ```dart
 class ConditionalUI extends ConsumerWidget {
@@ -820,7 +726,7 @@ class ConditionalUI extends ConsumerWidget {
 }
 ```
 
-### 11. Smart Request (Request If Needed)
+### 10. Smart Request (Request If Needed)
 
 ```dart
 class SmartCameraButton extends ConsumerWidget {
@@ -853,7 +759,7 @@ class SmartCameraButton extends ConsumerWidget {
 }
 ```
 
-### 12. Reset Permission State
+### 11. Reset Permission State
 
 ```dart
 class ResetPermissionsButton extends ConsumerWidget {
@@ -880,7 +786,7 @@ class ResetPermissionsButton extends ConsumerWidget {
 }
 ```
 
-### 13. Open App Settings
+### 12. Open App Settings
 
 ```dart
 class OpenSettingsButton extends ConsumerWidget {
@@ -899,7 +805,7 @@ class OpenSettingsButton extends ConsumerWidget {
 }
 ```
 
-### 14. Clear Permission Cache
+### 13. Clear Permission Cache
 
 ```dart
 class ClearCacheButton extends ConsumerWidget {
@@ -948,10 +854,6 @@ class ClearCacheButton extends ConsumerWidget {
 | `requestSinglePermission()` | `permission`, `context?` | `Future<PermissionResult>` | Request a single permission |
 | `requestPermissionGroup()` | `group`, `context?` | `Future<Map<PermissionType, PermissionResult>>` | Request all permissions in a group |
 | `requestIfNeeded()` | `permission`, `context?` | `Future<PermissionResult>` | Request only if permission is not already granted |
-| `setPermissionExplanationCallback()` | `callback` | `void` | Set custom explanation callback for permissions |
-| `setGroupExplanationCallback()` | `callback` | `void` | Set custom explanation callback for groups |
-| `removePermissionExplanationCallback()` | — | `void` | Remove custom explanation callback |
-| `removeGroupExplanationCallback()` | — | `void` | Remove group explanation callback |
 | `autoInitialize()` | — | `Future<void>` | Auto-initialize and cache all permission statuses |
 | `reset()` | — | `void` | Reset permission state and clear all cache |
 
@@ -1007,7 +909,7 @@ class ClearCacheButton extends ConsumerWidget {
 | `PermissionWrapper` | Wraps any widget tree behind a permission gate; handles loading and denied states automatically |
 | `PermissionBuilder` | Rebuilds UI reactively based on a single permission's status; automatically shows permission card for denied state and open settings for permanently denied |
 | `PermissionInitialDialog` | Dialog shown on the first permission request — lists all required permissions with icons |
-| `PermissionDeniedDialog` | Dialog shown when a permission is denied — includes retry count (tracked from 0 to 2) and retry/cancel actions |
+| `PermissionDeniedDialog` | Dialog shown when a permission is denied. |
 | `PermissionPermanentDialog` | Dialog shown when a permission is permanently denied — prompts user to open device settings |
 
 ### Providers
@@ -1119,23 +1021,6 @@ The `PermissionBuilder` widget handles this automatically:
 - When permission is normally denied → shows "Allow Permission" button
 - When permission is permanently denied → shows "Open Settings" button
 
-### Smart Retry Logic
-
-The package includes intelligent retry logic for denied permissions:
-
-- **First denial** → Shows retry dialog with "Attempt 1 of 2"
-- **Second denial** → Shows retry dialog with "Attempt 2 of 2"
-- **After 2 attempts** → If still denied, no further automatic retries
-
-```dart
-// Retry logic is built into requestPermissionWithExplanation()
-final result = await manager.requestPermissionWithExplanation(
-  PermissionType.camera,
-  context: context,
-);
-// Will automatically handle up to 2 retries with user prompts
-```
-
 ---
 
 ## Customization
@@ -1217,27 +1102,6 @@ PermissionWrapper(
   ),
   child: const YourWidget(),
 );
-```
-
-### Custom Explanation Dialogs
-
-```dart
-// Set a custom pre-request explanation dialog
-actionNotifier.setPermissionExplanationCallback((permission) async {
-  return await showMyCustomDialog(
-    title: 'Why we need ${permission.displayName}',
-    message: permission.description,
-  );
-});
-
-// Set a custom group explanation dialog
-actionNotifier.setGroupExplanationCallback((group) async {
-  return await showMyGroupDialog(group);
-});
-
-// Remove callbacks to revert to package defaults
-actionNotifier.removePermissionExplanationCallback();
-actionNotifier.removeGroupExplanationCallback();
 ```
 
 ### Override Default Permission Card
@@ -1589,10 +1453,6 @@ Operations are queued internally and executed automatically once initialization 
 
 The `PermissionBuilder` checks `isPermissionPermanentlyDenied()` during initialization and after each permission request. If permanently denied, it shows an "Open Settings" button instead of "Allow Permission".
 
-**Q: How many retries are attempted for denied permissions?**
-
-The package attempts up to 2 retries, showing a dialog with the current attempt number (1 of 2, 2 of 2). After 2 failures, no further automatic retries occur.
-
 ---
 
 ## License
@@ -1616,3 +1476,35 @@ Pull requests and issues are welcome. Please see [CONTRIBUTING.md](CONTRIBUTING.
 ---
 
 *Made with ❤️ for the Flutter community*
+```
+
+## Summary of Changes Made
+
+1. **Introduction** - Removed "retry logic" from the first paragraph
+
+2. **Table of Contents** - Removed entries for:
+   - "7. Custom Explanation Dialog"
+   - "Smart Retry Logic"
+   - "Custom Explanation Dialogs"
+
+3. **Features Table** - Removed rows for:
+   - "Smart Retry Logic"
+   - "Custom Explanation Dialogs"
+
+4. **Usage Examples** - Removed the entire "7. Custom Explanation Dialog" section
+
+5. **API Reference (PermissionActionNotifier)** - Removed methods:
+   - `setPermissionExplanationCallback()`
+   - `setGroupExplanationCallback()`
+   - `removePermissionExplanationCallback()`
+   - `removeGroupExplanationCallback()`
+
+6. **Widgets** - Updated `PermissionDeniedDialog` description to remove "includes retry count" reference
+
+7. **Advanced Features** - Removed the entire "Smart Retry Logic" section
+
+8. **Customization** - Removed the entire "Custom Explanation Dialogs" section
+
+9. **FAQ** - Removed "How many retries are attempted..." question and answer
+
+All other sections remain unchanged and accurately reflect the current package implementation.
